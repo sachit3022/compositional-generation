@@ -1,0 +1,23 @@
+name: compositional-generation
+channels:
+  - pytorch
+  - nvidia
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - pytorch
+  - torchvision
+  - cudatoolkit=10.1
+  - numpy
+  - matplotlib
+  - tqdm
+  - pillow
+  - scikit-learn
+  - scikit-image
+  - pandas
+  - jupyter
+  - jupyterlab
+  - ipykernel
+  - ipywidgets
