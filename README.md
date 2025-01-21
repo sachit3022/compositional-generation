@@ -1,4 +1,4 @@
-# compositional-generation
+# COIND: ENABLING LOGICAL COMPOSITIONS IN DIFFUSION MODELS
 < Teaser Image and GIF of CelebA >  
 
 ### Installation
