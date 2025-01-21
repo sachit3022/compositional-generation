@@ -1,0 +1,176 @@
+from scipy.special import rel_entr
+import numpy as np
+import torch
+from torch import nn as nn
+from typing import List, Union
+from cs_classifier.models import MultiLabelClassifier
+from torchmetrics import Accuracy
+import torch
+from torch import nn
+from torch.nn import functional as F
+from torchmetrics import Accuracy
+import math
+from typing import Tuple
+import itertools
+from torchmetrics import Metric
+
+
+
+class MultiLabelAcc(Metric):
+    def __init__(self,num_classes_per_label:int,device=None):
+        super().__init__()
+        self.acc = nn.ModuleList([Accuracy(num_classes=num_classes,task="multiclass") for num_classes in num_classes_per_label])
+        if device is not None:
+            self.acc = self.acc.to(device)
+        self.num_classes_per_label = num_classes_per_label
+    def update(self,preds, target):
+        for i in range(len(self.num_classes_per_label)):
+            self.acc[i].update(preds[i],target[:,i])
+    def compute(self):
+        return [acc.compute() for acc in self.acc]
+    def reset(self):
+        for acc in self.acc:
+            acc.reset()
+
+class WeightedAverage(Metric):
+    def __init__(self):
+        super().__init__()
+        self.total = 0
+        self.count = 0
+    def update(self, value, count):
+        self.total += value*count
+        self.count += count
+    def compute(self):
+        return self.total/self.count
+    def reset(self):
+        self.total = 0
+        self.count = 0
+
+class CS(Metric):
+    def __init__(self,classifier: nn.Module):
+        super().__init__()
+        self.classifier = classifier
+        self.classifier.eval()
+        self.accuracy_fn =nn.ModuleList([WeightedAverage() for _ in range(len(classifier.num_classes_per_label))])
+        self.total_acc =  WeightedAverage()
+
+    @torch.no_grad()
+    def update(self,generated_images,queries,y_null,guidance_scale):
+        #if the generation is as per the query and +/- from guidance scale.
+        logits = self.classifier(generated_images)
+        pred_vals = torch.stack([torch.argmax(logits[i],dim=1) for i in range(len(logits))],dim=1)
+        ###Quiers are BXQXC and pred_vals are BXC
+        #repeat the pred_vals from BXC to BXQXC
+        pred_vals = pred_vals.unsqueeze(dim=1).repeat(1,queries.size(1),1)
+        y_null = y_null.unsqueeze(dim=1).repeat(1,queries.size(1),1).to(pred_vals.device)
+        equal = (pred_vals == queries)*(torch.tensor(guidance_scale)>0).to(pred_vals.device).unsqueeze(dim=0).unsqueeze(dim=2)
+        equal = torch.where(queries == y_null, torch.tensor(True), equal) #dont consider the null token
+        #check all are true across the dim=1
+        equal = equal.all(dim=1)
+        self.total_acc.update(equal.all(dim=1).float().mean(),generated_images.size(0))
+        #avergae accuracy of the batch
+        equal = equal.float().mean(dim=0)
+        for i,acc in enumerate(self.accuracy_fn):
+            acc.update(equal[i],generated_images.size(0))
+        return 
+
+    def compute(self):
+        return_dict= {"total_acc":self.total_acc.compute()}
+        for i,acc in enumerate(self.accuracy_fn):
+            return_dict[f"accuracy_{i}"] = acc.compute()
+        return return_dict
+  
+
+class R2Score(Metric):
+    def __init__(self,sample_size:Tuple[int]):
+        super().__init__()
+        self.r2 = R2Score(multioutput='variance_weighted',num_outputs=math.prod(sample_size))
+    def update(self,generated_images,true_images):
+        self.r2.update(generated_images,true_images)
+    def compute(self):
+        return {"r2":self.r2.compute()}
+    def reset(self):
+        self.r2.reset()
+
+                                                            
+class JSD(Metric):
+    def __init__(self,num_classes_per_label:int):
+        super().__init__()
+        """
+        hyperparameters mentioned in the paper
+        JSD(c_1,c_2) between labels c_1,c_2 [ for now we only support pairwise JSD]
+        num_of_timesteps = 5
+        start,end = 300,600 [ refer to elucidating design space paper]
+        """
+        self.c_1_index,self.c_2_index = 0,1
+        self.c_1_num_classes,self.c_2_num_classes = num_classes_per_label[self.c_1_index],num_classes_per_label[self.c_2_index]
+        self.num_of_timesteps = 5
+        self.time_limit = (300,600)
+        self.jsd = WeightedAverage()
+        self.guidance_accuracy = nn.ModuleList([WeightedAverage() for _ in range(2)])
+
+    def update(self,batch, model,scheduler):
+        count = batch["X"].size(0)
+        jsd,accuracy = self.guidance_evaluator(batch,model,scheduler)
+        for acc,acc_module in zip(accuracy,self.guidance_accuracy):
+            acc_module.update(acc,count)
+        self.jsd.update(jsd,count)
+
+    def compute(self):
+        return_metrics = {"jsd":self.jsd.compute()}
+        for i,acc in enumerate(self.guidance_accuracy):
+            return_metrics[f"guidance_accuracy_{i}"] = acc.compute()
+        return return_metrics
+
+    def reset(self):
+        self.jsd.reset()
+        for acc in self.guidance_accuracy:
+            acc.reset()
+    
+    def guidance_evaluator(self,batch,model,scheduler):
+        """
+        refactor guidance evaluator
+        """
+
+        device = self.device
+        start,end = self.time_limit
+        c_1,c_2 = self.c_1_num_classes,self.c_2_num_classes
+        c_1_index,c_2_index = self.c_1_index,self.c_2_index
+
+        x_og,y_og,y_null = batch["X"].to(model.device), batch["label"].to(model.device), batch["label_null"].to(model.device)
+        all_possible_joint_labels = torch.tensor(list(itertools.product(range( self.c_1_num_classes),range(self.c_2_num_classes))),device=device,dtype=torch.long)
+        y_all  = y_null[:1].repeat(c_1*c_2+c_1+c_2,1).to(dtype=all_possible_joint_labels.dtype,device=device)
+        y_all[:c_1*c_2,c_1_index] = all_possible_joint_labels[:,0]
+        y_all[:c_1*c_2,c_2_index] = all_possible_joint_labels[:,1]
+        y_all[c_1*c_2:c_1*c_2+c_1,c_1_index] = torch.arange(c_1,device=device)
+        y_all[c_1*c_2+c_1:,c_2_index] =torch.arange(c_2,device=device)
+
+        y_true = y_all.repeat(self.num_of_timesteps,1)
+        
+        
+        og_timesteps = torch.linspace(start, end, self.num_of_timesteps,device=device).long()
+        timesteps = og_timesteps.repeat_interleave(y_all.size(0))
+
+        accuracy = [0,0]
+        js_divergence = []
+        x_og,y_og = batch["X"].to(model.device), batch["label"].to(model.device)
+        for i in range(x_og.size(0)):
+            x0 = x_og[i:i+1]
+            y = y_og[i:i+1]
+            
+            noise = torch.randn_like(x0)
+            xt = scheduler.add_noise(x0, noise, og_timesteps)
+            xt = xt.repeat_interleave(y_all.size(0),dim=0)
+            with torch.no_grad():
+                noise_pred = model(xt, timesteps,y_true)
+            n_chunks = [n.mean(dim=(1,2,3)) for n in F.mse_loss(noise_pred, noise, reduction='none').chunk(self.num_of_timesteps,dim=0)]
+            l = sum([(n - n.mean())/n.std() for n in n_chunks]).view(y_all.size(0),-1).mean(dim=1).detach().cpu()
+            joint =F.softmax(-1*l[:c_1*c_2],dim=0).numpy()
+            indp_0 = F.softmax( -1*l[c_1*c_2:c_1*c_2+c_1],dim=0)
+            indp_1 = F.softmax(-1*l[c_1*c_2+c_1:],dim=0)
+            mutual = ((indp_0.reshape(-1,1) @ indp_1.reshape(1,-1))).numpy()
+            js_divergence_m = 0.5*(sum(rel_entr(mutual.reshape(-1),joint.reshape(-1)))+ sum(rel_entr(joint.reshape(-1),mutual.reshape(-1))))
+            js_divergence.append(js_divergence_m)
+            y_est = [np.argmax(indp_0) == y[0,c_1_index].cpu().numpy(), np.argmax(indp_1)== y[0,c_2_index].cpu().numpy()]
+            accuracy = [a+b for a,b in zip(accuracy,y_est)]
+        return sum(js_divergence)/x_og.size(0),[x*1.0/len(x_og) for x in accuracy]
