@@ -18,9 +18,13 @@
 < Teaser Image and GIF of CelebA >  
 
 ### Installation
-> git clone https://github.com/sachit3022/compositional-generation.git
-> conda env create -f environment.yml
-> conda activate compositional-generation
+```bash
+git clone https://github.com/sachit3022/compositional-generation.git
+conda env create -f environment.yml
+conda activate compositional-generation
+cd compositional-generation
+```
+
 #### CelebA
 Download CelebA from ....
 to speed up the training process run generation on the latent space.
