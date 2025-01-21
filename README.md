@@ -1,7 +1,5 @@
 <div align="center">
 
-<img src="PanopticBEV/images/cvlab.png" align="right" width=8%>
-
 # COIND: ENABLING LOGICAL COMPOSITIONS IN DIFFUSION MODELS
 
    <p style="font-size:1.2em">
@@ -10,10 +8,12 @@
       <a href="https://scholar.google.com/citations?user=JKcrO9IAAAAJ&hl=en"><strong>Vishnu Boddeti</strong></a>
       <br>
       Michigan State University
+      <br>
+      <a href="https://openreview.net/forum?id=cCRlEvjrx4"><strong>ICLR 2025</strong></a>
+</div>
    </p>
 
-[ICLR 2025](https://openreview.net/forum?id=cCRlEvjrx4)
-</div>
+
 
 < Teaser Image and GIF of CelebA >  
 
