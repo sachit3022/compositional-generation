@@ -1,4 +1,20 @@
+<div align="center">
+
+<img src="PanopticBEV/images/cvlab.png" align="right" width=8%>
+
 # COIND: ENABLING LOGICAL COMPOSITIONS IN DIFFUSION MODELS
+
+   <p style="font-size:1.2em">
+      <a href="http://sachit3022.github.io"><strong>Sachit Gaudi</strong></a>·
+      <a href="https://scholar.google.com/citations?user=mBrW_AkAAAAJ&hl=en&oi=ao"><strong>Gautam Sreekumar</strong></a>·
+      <a href="https://scholar.google.com/citations?user=JKcrO9IAAAAJ&hl=en"><strong>Vishnu Boddeti</strong></a>
+      <br>
+      Michigan State University
+   </p>
+
+[ICLR 2025](https://openreview.net/forum?id=cCRlEvjrx4)
+</div>
+
 < Teaser Image and GIF of CelebA >  
 
 ### Installation
@@ -54,3 +70,19 @@ Coming soon .....
 ### CoInD 🤝 🤗
 
 Coming soon ..... 
+
+
+
+### Citation
+
+If you find our work useful in your research, please consider starring the repo and citing:
+
+```Bibtex
+@inproceedings{gaudi2025coind,
+   title={{CoInD: Enabling logical compositions in diffusion models}},
+   author={Gaudi Sachit, Sreekumar Gautam, Boddeti Vishnu},
+   booktitle={ICLR},
+   year={2025}
+}
+```
+For questions, feel free to post here or drop an email to this address- gaudisac@msu.edu
