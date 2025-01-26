@@ -17,30 +17,39 @@
 
 < Teaser Image and GIF of CelebA >  
 
-### Installation
+## Installation
 ```bash
 git clone https://github.com/sachit3022/compositional-generation.git
+cd compositional-generation
 conda env create -f environment.yml
 conda activate compositional-generation
-cd compositional-generation
 ```
 
-#### CelebA
+## CelebA
 Download CelebA from ....
 to speed up the training process run generation on the latent space.
 
 Extract 
 
-### Training
-#### Generative model
-#### Classifier for Confirmity score
+## Training
+### Generative model
+Example script to run the training based on the dataset setup and the CoInD regularizer
+```bash
+python coind/train.py --config-name=cmnist dataset=cmnist_partial diffusion.lambda_coind=1.0
+```
+This will create a folder called outputs/ and you can monitor the training via tensorboard or CSV generated in the output folder.
+### Classifier for Confirmity score
+
+
 
 
 ### Inference
 Once trained upload the checkpoint to checkpoints repository or download our checkpoints and place them in the checkpoints repository.
 > wget 
 #### Evaluation
-evaluate.sh checkpoint < > dataset < > 
+Confirmity Score
+To compute FID we use pytorch-fid to replicate the results please run the bash scripts of the evaluate/cmnist.sh
+FID: we use pytorch-fid
 
 #### Generate 
 To have the guide to custom logical queries and fine grained control refer to our notbook.

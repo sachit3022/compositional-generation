@@ -55,6 +55,9 @@ def process_query(unet, image, t,query, guidance_scale, null_token):
 
 
 class CondDDIMPipeline(DDIMPipeline):
+    def __init__(self, unet, scheduler,vae: Optional[AutoencoderKL] = None):
+        super().__init__(unet, scheduler)
+        self.vae = vae
     """
     A PyTorch Lightning module that implements the DDIM pipeline for image data. Taken from the original DDIM implementation."""
     @torch.no_grad()
@@ -71,7 +74,6 @@ class CondDDIMPipeline(DDIMPipeline):
         guidance_scale: Union[float,int,torch.Tensor] = 0.0,
         null_token: Optional[torch.Tensor] = None,
         image: Optional[torch.Tensor] = None,
-        vae: Optional[AutoencoderKL] = None,
         **kwargs,
     ):
         if isinstance(self.unet.config.sample_size, int):
@@ -111,8 +113,8 @@ class CondDDIMPipeline(DDIMPipeline):
                 model_output, t, image, eta=eta, use_clipped_model_output=use_clipped_model_output, generator=generator
             ).prev_sample
 
-        if vae is not None:
-            image = vae.decode(image/ vae.config.scaling_factor)[0]
+        if self.vae is not None:
+            image = self.vae.decode(image/ vae.config.scaling_factor)[0]
         if not return_dict:
             return (image,)
         return ImagePipelineOutput(images=image)

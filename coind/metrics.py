@@ -1,36 +1,15 @@
-from scipy.special import rel_entr
+import math
+import os
 import numpy as np
-import torch
-from torch import nn as nn
-from typing import List, Union
-from cs_classifier.models import MultiLabelClassifier
-from torchmetrics import Accuracy
 import torch
 from torch import nn
 from torch.nn import functional as F
-from torchmetrics import Accuracy
-import math
-from typing import Tuple
+from torchmetrics import Metric,R2Score
+from typing import List, Union, Tuple
 import itertools
-from torchmetrics import Metric
+from scipy.special import rel_entr
+from utils import true_generated_image_grid_save,save_images_in_folder
 
-
-
-class MultiLabelAcc(Metric):
-    def __init__(self,num_classes_per_label:int,device=None):
-        super().__init__()
-        self.acc = nn.ModuleList([Accuracy(num_classes=num_classes,task="multiclass") for num_classes in num_classes_per_label])
-        if device is not None:
-            self.acc = self.acc.to(device)
-        self.num_classes_per_label = num_classes_per_label
-    def update(self,preds, target):
-        for i in range(len(self.num_classes_per_label)):
-            self.acc[i].update(preds[i],target[:,i])
-    def compute(self):
-        return [acc.compute() for acc in self.acc]
-    def reset(self):
-        for acc in self.acc:
-            acc.reset()
 
 class WeightedAverage(Metric):
     def __init__(self):
@@ -56,19 +35,14 @@ class CS(Metric):
 
     @torch.no_grad()
     def update(self,generated_images,queries,y_null,guidance_scale):
-        #if the generation is as per the query and +/- from guidance scale.
         logits = self.classifier(generated_images)
         pred_vals = torch.stack([torch.argmax(logits[i],dim=1) for i in range(len(logits))],dim=1)
-        ###Quiers are BXQXC and pred_vals are BXC
-        #repeat the pred_vals from BXC to BXQXC
         pred_vals = pred_vals.unsqueeze(dim=1).repeat(1,queries.size(1),1)
-        y_null = y_null.unsqueeze(dim=1).repeat(1,queries.size(1),1).to(pred_vals.device)
+        y_null = y_null.unsqueeze(dim=1).repeat(1,queries.size(1),1)
         equal = (pred_vals == queries)*(torch.tensor(guidance_scale)>0).to(pred_vals.device).unsqueeze(dim=0).unsqueeze(dim=2)
         equal = torch.where(queries == y_null, torch.tensor(True), equal) #dont consider the null token
-        #check all are true across the dim=1
         equal = equal.all(dim=1)
         self.total_acc.update(equal.all(dim=1).float().mean(),generated_images.size(0))
-        #avergae accuracy of the batch
         equal = equal.float().mean(dim=0)
         for i,acc in enumerate(self.accuracy_fn):
             acc.update(equal[i],generated_images.size(0))
@@ -81,7 +55,7 @@ class CS(Metric):
         return return_dict
   
 
-class R2Score(Metric):
+class R2(Metric):
     def __init__(self,sample_size:Tuple[int]):
         super().__init__()
         self.r2 = R2Score(multioutput='variance_weighted',num_outputs=math.prod(sample_size))
@@ -174,3 +148,18 @@ class JSD(Metric):
             y_est = [np.argmax(indp_0) == y[0,c_1_index].cpu().numpy(), np.argmax(indp_1)== y[0,c_2_index].cpu().numpy()]
             accuracy = [a+b for a,b in zip(accuracy,y_est)]
         return sum(js_divergence)/x_og.size(0),[x*1.0/len(x_og) for x in accuracy]
+
+class Quality:
+    def __init__(self,save_dir,save_style='grid'):
+        self.save_dir = save_dir
+        self.counter = 0
+        self.save_style = save_style
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir) 
+    def update(self,generated_images,true_images):
+        if self.save_style == 'grid':
+            true_generated_image_grid_save(true_images, generated_images, f"{self.save_dir}/grid_{self.counter}.png")
+            self.counter += 1
+        else:
+            save_images_in_folder(true_images, y, path=self.save_dir, title=f'generated_samples',counter=self.counter)
+            self.counter += generated_images.size(0)

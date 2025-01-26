@@ -7,31 +7,30 @@ import pytorch_lightning as pl
 import torch
 
 
-@hydra.main(config_path='../configs',version_base='1.3',config_name='experiments/cmnist_partial')
+@hydra.main(config_path='../configs',version_base='1.2',config_name='cmnist')
 def main(cfg):
     
     ########## Hyperparameters and settings ##########
-    set_seed(cfg.experiments.seed)
+    set_seed(cfg.seed)
     ########## Dataset ##########
 
-    logger = instantiate(cfg.experiments.logger)
-    train_dataset = instantiate(cfg.experiments.dataset.train_dataset)
-    val_dataset = instantiate(cfg.experiments.dataset.val_dataset)
+    train_dataset = instantiate(cfg.dataset.train_dataset)
+    val_dataset = instantiate(cfg.dataset.val_dataset)
    
-    train_dataloader = torch.utils.data.DataLoader(dataset=train_dataset,**cfg.experiments.dataset.train_dataloader)
-    val_dataloader = torch.utils.data.DataLoader(dataset=val_dataset,**cfg.experiments.dataset.val_dataloader)
+    train_dataloader = torch.utils.data.DataLoader(dataset=train_dataset,**cfg.dataset.train_dataloader)
+    val_dataloader = torch.utils.data.DataLoader(dataset=val_dataset,**cfg.dataset.val_dataloader)
 
     ########## Callbacks and Logger ##########
     callbacks,loggers = [],[]
-    for callback_name, callback in cfg.experiments.callbacks.items():
+    for callback_name, callback in cfg.callbacks.items():
         callbacks.append(instantiate(callback))
-    for logger_name, logger in cfg.experiments.loggers.items():
+    for logger_name, logger in cfg.loggers.items():
         loggers.append(instantiate(logger))
 
 
     ########## Train the diffusion model #############
-    diff_process  = instantiate(cfg.experiments.diffusion)
-    diff_trainer = pl.Trainer(callbacks=callbacks,logger=loggers,**cfg.experiments.trainer) 
+    diff_process  = instantiate(cfg.diffusion)
+    diff_trainer = pl.Trainer(callbacks=callbacks,logger=loggers,**cfg.trainer) 
     diff_trainer.fit(diff_process, train_dataloader, val_dataloader)
     
 if __name__ == "__main__":  

@@ -1,0 +1,29 @@
+defaults:
+  - /diffusion: cmnist_dm
+  - /dataset: cmnist_uniform
+  - _self_
+
+seed: 42
+checkpoint: checkpoints/cmnist/cmnist_partial_coind.ckpt
+
+sampling:
+    _target_: score.pipelines.CondDDIMPipeline
+    _partial_: true
+    
+metrics:
+  cs:
+    _target_: score.metrics.CS
+    num_classes_per_label: ${diffusion.model.num_class_per_label}
+    classifer_checkpoint: checkpoints/cs_classifier/cmnist.ckpt
+  quality:
+    _target_: score.metrics.Quality
+    output_dir: ${hydra:run.dir}
+  jsd:
+    _target_: score.metrics.JSD
+    num_classes_per_label: ${diffusion.model.num_class_per_label}
+
+
+
+
+
+

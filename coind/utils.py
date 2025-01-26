@@ -13,6 +13,14 @@ def set_seed(seed):
     torch.cuda.manual_seed(seed)
 
 
+def true_generated_image_grid_save(true_images, generated_images, save_path):
+    #log_images to a file
+    fig, (ax1, ax2) = plt.subplots(1, 2)
+    save_images(true_images.detach().cpu(), path=ax1, title='true_samples')
+    save_images(generated_images.detach().cpu(), path=ax2, title='conditional_generated_samples')
+    fig.savefig(save_path)
+    plt.close(fig)
+
 def make_grid(tensor, images_per_row=4):
     num_images = tensor.shape[0]
     img_height = tensor.shape[2]
@@ -50,12 +58,12 @@ def save_images(samples, path:Union[str,plt.Axes],title:str):
         path.set_title(title)
         return path
 
-def save_images_in_folder(samples, y, path:Union[str,plt.Axes],title:str):
+def save_images_in_folder(samples, y, path:Union[str,plt.Axes],title:str,counter:int=0):
     if isinstance(path, str):
         if not os.path.exists(path):
             os.makedirs(path)
     for i,sample in enumerate(samples):
-        title_ = path+ f"/{i}"+ "_".join([title,str(y[i])])+".png"
+        title_ = path+ f"/{counter+i}"+ "_".join([title,str(y[i])])+".png"
         sample = (sample - sample.min()) / (sample.max() - sample.min())
         plt.imsave(title_,np.clip(sample.permute(1, 2, 0).numpy(),0,1))
         

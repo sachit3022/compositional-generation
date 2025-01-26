@@ -13,30 +13,31 @@ callbacks:
   lr_monitor:
     _target_: pytorch_lightning.callbacks.LearningRateMonitor
     logging_interval: epoch
-  sampling_callback:
-    _target_: callbacks.tracker.TrainingTracker
+  generation_metrics:
+    _target_: callbacks.tracker.GenerationMetrics
     sampling_pipe: 
       _target_: score.pipelines.CondDDIMPipeline
-      _partial_: true 
-    guidance_scale: 7.5
-    num_inference_steps: 50
-    output_dir: ${hydra:run.dir}
-
-diffusion:
-  lambda_coind : 1.0
+      _partial_: true
+    metrics: ["quality","cs"] 
+    num_classes_per_label: ${diffusion.model.num_class_per_label}
+    output_dir: ${hydra:run.dir}  
+    classifer_checkpoint: checkpoints/cs_classifier/cmnist.ckpt       
+  jsd:
+    _target_: callbacks.tracker.JSDTracker
+    num_classes_per_label: ${diffusion.model.num_class_per_label}
 
 loggers:
   tensorboard_logger:
     _target_: pytorch_lightning.loggers.TensorBoardLogger
     save_dir: ${hydra:run.dir}
-    name: diffusion
+    name: tensorboard
   csv_logger:
     _target_: pytorch_lightning.loggers.CSVLogger
     save_dir: ${hydra:run.dir}
-    name: diffusion
+    name: csv
 
 trainer:
-  max_steps: ${experiments.diffusion.scheduler.num_training_steps}
+  max_steps: ${diffusion.scheduler.num_training_steps}
   accelerator: gpu
   gradient_clip_val: 1.0
   enable_checkpointing: true

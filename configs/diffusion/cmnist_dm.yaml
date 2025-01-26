@@ -22,7 +22,7 @@ model:
     - AttnUpBlock2D
     - AttnUpBlock2D
     - UpBlock2D
-lambda_coind : 1.0
+lambda_coind : 0.0
 noise_scheduler:
   _target_: diffusers.DDPMScheduler
   num_train_timesteps: 1000
