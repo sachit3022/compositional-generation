@@ -32,12 +32,10 @@
 
 
 
-### Complete walk through of the CoInD along with theoritical derivation for 2d gaussian is avaiable at [notebooks/2d_gaussian_generation.ipynb](notebooks/2d_gaussian_generation.ipynb)
+Complete walk through of the CoInD along with theoritical derivation for 2d gaussian is avaiable at [notebooks/2d_gaussian_generation.ipynb](notebooks/2d_gaussian_generation.ipynb)
 
-## For large vision dataset we give a sofisticated code where you can train large model on multiple GPUs
-
-
-## Installation
+For large vision dataset we give a sofisticated code where you can train large model on multiple GPUs
+### Installation
 ```bash
 git clone https://github.com/sachit3022/compositional-generation.git
 cd compositional-generation
@@ -79,7 +77,7 @@ To train on custom dataset follow our guide
 
 ### Repository structure
 Source code is present in CoInD repository. This repository consits of training module to train your models with CoInD built on lightning, huggingface and hydra for config management. 
-  -  CoInD/
+  <!-- -  CoInD/
     - models ( Backbone for conditional denoising UNet / DiT ) 
     - inference ( Code to perform sampling with AND and OR operations)
     - score ( CoInD modules required for training: Loss, Noise schedule, EMA, ....)
@@ -93,7 +91,7 @@ Source code is present in CoInD repository. This repository consits of training 
         - model_report.py
     - scripts
         - extract_latent.py ( To increase the speedup of the latent space diffsusion models, we pre-compute latents and store in the data folder )
-  - config/ ( For config mangement we leverage hydra )
+  - config/ ( For config mangement we leverage hydra ) -->
 
 
 ### Scripts for finetuning Stable Diffusion with CoInD
