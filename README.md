@@ -15,7 +15,27 @@
 
 
 
-< Teaser Image and GIF of CelebA >  
+<table>
+  <tr>
+    <td><img src="assets/full_2d_dataset.png" width="200"/></td>
+    <td><img src="assets/train_dataset.png" width="200"/></td>
+    <td><img src="assets/CoInD.png" width="200"/></td>
+    <td><img src="assets/vanilla.png" width="200"/></td>
+  </tr>
+  <tr>
+    <td><p align="center">Dataset present in nature where C<sub>1</sub>,C<sub>2</sub> are independent gaussian denoted on the respective axis.</td>
+    <td><p align="center">Orthogonal Support (only few compositions seen in training)</p></td>
+    <td><p align="center">Diffusion Model with CoInD generates unseen compositions</p></td>
+    <td><p align="center">Vanilla Diffusion Models generate incorrect interpolations</p></td>
+  </tr>
+</table>
+
+
+
+### Complete walk through of the CoInD along with theoritical derivation for 2d gaussian is avaiable at [notebooks/2d_gaussian_generation.ipynb](notebooks/2d_gaussian_generation.ipynb)
+
+## For large vision dataset we give a sofisticated code where you can train large model on multiple GPUs
+
 
 ## Installation
 ```bash
