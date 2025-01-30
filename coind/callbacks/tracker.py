@@ -5,6 +5,7 @@ sys.path.append(str(Path(__file__).absolute().parent.parent))
 import os
 import torch
 import torchvision
+import torch.nn as nn
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import Callback
 from diffusers import AutoencoderKL
@@ -57,12 +58,13 @@ class GenerationMetrics(Callback):
                     num_classes_per_label: List[int] = [10,10],
                     guidance_scale: float = 7.5,
                     output_dir: Optional[str] = None,
-                    classifer_checkpoint: Optional[str] = None,
+                    classifier: Optional[nn.Module] = None,
+                    classifer_checkpoint: Optional[str] = None
                    ):
             super().__init__()
             if "quality" in metrics and output_dir is None:
                 raise ValueError("Output directory is required")
-            if "cs" in metrics and classifer_checkpoint is None:
+            if "cs" in metrics and classifier is None:
                 raise ValueError("Classifier checkpoint is required")
             self.sampling_pipe_partial = sampling_pipe
             self.num_inference_steps = num_inference_steps
@@ -73,7 +75,8 @@ class GenerationMetrics(Callback):
             self.vae = vae
             self.guidance_scale = guidance_scale
             self.num_classes_per_label = num_classes_per_label
-            self.classifer_checkpoint = classifer_checkpoint
+            self.model = classifier
+            self.model.load_state_dict(torch.load(classifer_checkpoint)["state_dict"])
             self.metrics = metrics
 
     def setup(self, trainer, pl_module, stage):
@@ -85,12 +88,11 @@ class GenerationMetrics(Callback):
                 output_shape = (pl_module.model.config.in_channels,pl_module.model.config.sample_size,pl_module.model.config.sample_size)
        
             self.sampling_pipe = self.sampling_pipe_partial(unet = pl_module.model,scheduler=pl_module.noise_scheduler,vae=self.vae)
-            model = MultiLabelClassifier(base_model= torchvision.models.resnet18(),num_classes_per_label=self.num_classes_per_label)
-            model.load_state_dict(torch.load(self.classifer_checkpoint)["state_dict"])
+            
             if "cs" in self.metrics:
                 self.cs_metric_logger = {
-                    "train": CS(classifier = model).to(pl_module.device),
-                    "val": CS(classifier = model).to(pl_module.device)
+                    "train": CS(classifier = self.model).to(pl_module.device),
+                    "val": CS(classifier = self.model).to(pl_module.device)
                 }
             if "r2" in self.metrics:
                 self.r2_metric_logger = {
@@ -110,7 +112,9 @@ class GenerationMetrics(Callback):
                                   batch_idx: int,
                                   dataloader_idx: int =0):
         if batch_idx ==0 and (trainer.current_epoch +1)% self.log_interval == 0:
+            pl_module.model.eval()
             self.and_metric_tracking(batch,epoch=trainer.current_epoch,state="train")
+            pl_module.model.train()
         
     def on_validation_batch_start(self,
                                   trainer: pl.Trainer,

@@ -34,7 +34,7 @@ class ComposableDiffusion(pl.LightningModule):
             y_coind_obj: [y,y_null,y_i,y_-i]
         """
         p_null = 0.2
-        masking = 'batch' #'batch' or 'sample' or 'none'
+        masking = 'sample' #'batch' or 'sample' or 'none'
         coind_masking = 'pairwise' #, 'random'( 0.1 )', 'one vs all'
 
 
@@ -87,7 +87,8 @@ class ComposableDiffusion(pl.LightningModule):
         ################### INDEPENDENCE ############################
 
         batch_size, num_cols = y.size()
-        xt = xt.repeat(4,1,1,1) #replaced 4 with 2
+        num_dim = len(xt.shape)
+        xt = xt.repeat(4,*(1 for _ in range(num_dim-1)))  #xt = xt.repeat(4,1,1,1) #replaced 4 with 2
         timesteps = timesteps.repeat(4)
 
         if self.lambda_coind > 0.0:    
@@ -131,7 +132,8 @@ class ComposableDiffusion(pl.LightningModule):
         with torch.no_grad():
             l_diffusion  = F.mse_loss(noise_pred, noise)
             batch_size, num_cols = y.size()
-            xt = xt.repeat(4,1,1,1) #replaced 4 with 2
+            num_dim = len(xt.shape)
+            xt = xt.repeat(4,*(1 for _ in range(num_dim-1)))  #xt = xt.repeat(4,1,1,1) #replaced 4 with 2
             timesteps = timesteps.repeat(4)
             noise_pred_new = self.model(xt, timesteps,y_coind_obj).chunk(4,dim=0)
             l_coind = F.mse_loss(noise_pred_new[0]+noise_pred_new[1], noise_pred_new[2]+noise_pred_new[3])

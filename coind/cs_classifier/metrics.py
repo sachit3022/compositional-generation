@@ -19,4 +19,3 @@ class MultiLabelAcc(Metric):
     def reset(self):
         for acc in self.acc:
             acc.reset()
-

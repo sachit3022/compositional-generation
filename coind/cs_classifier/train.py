@@ -9,7 +9,7 @@ import pytorch_lightning as pl
 import torch
 
 
-@hydra.main(config_path='../../configs', config_name='classifier/cmnist',version_base='1.2')
+@hydra.main(config_path='../../configs', config_name='classifier/waterbirds',version_base='1.2')
 def main(cfg):
     
     ########## Hyperparameters and settings ##########

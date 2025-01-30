@@ -108,13 +108,13 @@ class CondDDIMPipeline(DDIMPipeline):
             # do x_t -> x_t-1
             #train_timesteps 
             model_output = process_query(self.unet, image, t,query, guidance_scale, null_token)
-
+            #model_output = self.unet(image, t,query, guidance_scale=guidance_scale, null_token=null_token)
             image = self.scheduler.step(
                 model_output, t, image, eta=eta, use_clipped_model_output=use_clipped_model_output, generator=generator
             ).prev_sample
 
         if self.vae is not None:
-            image = self.vae.decode(image/ vae.config.scaling_factor)[0]
+            image = self.vae.decode(image/self.vae.config.scaling_factor)[0]
         if not return_dict:
             return (image,)
         return ImagePipelineOutput(images=image)
