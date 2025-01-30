@@ -1,0 +1,24 @@
+train_dataset:
+  _target_: datasets.celeba.BlondMale
+  celeba_dir:  /research/hal-datastore/datasets/original/
+  latent_dir: /research/hal-gaudisac/Diffusion/compositional-generation/data/celeba/vae_train_features
+  split: 'train'
+  
+val_dataset:
+  _target_: datasets.celeba.BlondMale
+  celeba_dir:  /research/hal-datastore/datasets/original/
+  latent_dir: /research/hal-gaudisac/Diffusion/compositional-generation/data/celeba/vae_val_features
+  split: 'val'
+  
+train_dataloader:
+  batch_size: 64
+  num_workers: 4
+  persistent_workers: True
+  shuffle: True
+
+val_dataloader:
+  batch_size: 64
+  num_workers: 4
+  persistent_workers: True
+  shuffle: False
+

@@ -1,0 +1,36 @@
+train_dataset:
+  _target_: datasets.waterbirds.Full
+  root_dir: /research/hal-gaudisac/Diffusion/controllable-generation/
+  target_name: waterbird_complete95
+  confounder_names: ['forest2water2']
+  augment_data: null
+  model_type: 'resnet50'
+  split: train
+  latent_dir: /research/hal-gaudisac/Diffusion/compositional-generation/data/waterbirds/clip_train_features
+    
+val_dataset:
+  _target_: datasets.waterbirds.Full
+  root_dir: /research/hal-gaudisac/Diffusion/controllable-generation/
+  target_name: waterbird_complete95
+  confounder_names: ['forest2water2']
+  augment_data: null
+  model_type: 'resnet50'
+  split: val
+  latent_dir: /research/hal-gaudisac/Diffusion/compositional-generation/data/waterbirds/clip_val_features
+    
+  
+train_dataloader:
+  batch_size: 128
+  num_workers: 4
+  persistent_workers: True
+  shuffle: True
+
+val_dataloader:
+  batch_size: 128
+  num_workers: 4
+  persistent_workers: True
+  shuffle: True
+
+
+
+

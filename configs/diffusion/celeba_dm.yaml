@@ -1,0 +1,31 @@
+_target_: score.diffusion.ComposableDiffusion
+
+model:
+  _target_: models.conditional_unet.ClassConditionalUnet
+  num_class_per_label: [2,2]
+  interaction: sum
+  sample_size: 8
+  in_channels: 16
+  out_channels: 16 
+  center_input_sample: false
+  time_embedding_type: positional
+
+
+
+
+lambda_coind : 0.0
+noise_scheduler:
+  _target_: diffusers.DDPMScheduler
+  num_train_timesteps: 1000
+  clip_sample: true
+  prediction_type: epsilon
+  beta_schedule: squaredcos_cap_v2
+optimizer:
+  _target_: torch.optim.AdamW
+  _partial_: true
+  lr: 1.0e-4
+scheduler:
+  _target_: diffusers.optimization.get_cosine_schedule_with_warmup
+  _partial_: true
+  num_warmup_steps: 5000
+  num_training_steps: 500000

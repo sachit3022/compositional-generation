@@ -1,6 +1,6 @@
 defaults:
-  - /diffusion: cmnist_dm
-  - /dataset: cmnist_uniform
+  - /diffusion: waterbirds_dm
+  - /dataset: waterbirds_clip_orthogonal
   - _self_
 
 seed: 42
@@ -18,19 +18,15 @@ callbacks:
     sampling_pipe: 
       _target_: score.pipelines.CondDDIMPipeline
       _partial_: true
-    metrics: ["quality","cs"] 
+    metrics: ["cs"] 
+    log_interval: 50
     num_classes_per_label: ${diffusion.model.num_class_per_label}
     output_dir: ${hydra:run.dir}  
     classifier: 
-      _target_: cs_classifier.models.MultiLabelClassifier
-      base_model: 
-        _target_: torchvision.models.resnet18
+      _target_:  cs_classifier.models.ClipClassifer
       num_classes_per_label: ${diffusion.model.num_class_per_label}
-    classifer_checkpoint: checkpoints/cs_classifier/cmnist.ckpt       
-  jsd:
-    _target_: callbacks.tracker.JSDTracker
-    num_classes_per_label: ${diffusion.model.num_class_per_label}
-
+    classifer_checkpoint: checkpoints/cs_classifier/waterbirds.ckpt       
+    
 loggers:
   tensorboard_logger:
     _target_: pytorch_lightning.loggers.TensorBoardLogger
