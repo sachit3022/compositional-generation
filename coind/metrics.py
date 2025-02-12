@@ -163,3 +163,53 @@ class Quality:
         else:
             save_images_in_folder(true_images, y, path=self.save_dir, title=f'generated_samples',counter=self.counter)
             self.counter += generated_images.size(0)
+
+
+
+class GroupAccuracy(Metric):
+    def __init__(self,labels=2,confounders=2):
+        super().__init__()
+        groups = labels*confounders
+        self.total_per_group = [0]*groups
+        self.count_per_group = [0]*groups
+    def update(self,logits,y,g):
+        is_correct = (torch.argmax(logits,dim=1) == y).float()
+        for group in range(4):
+            y_mask = (y == group//2)
+            g_mask = (g == group%2)
+            y_g_mask = y_mask & g_mask
+            self.total_per_group[group] += is_correct[y_g_mask].sum().item()
+            self.count_per_group[group] += y_g_mask.sum().item()
+    
+    def compute(self):
+        group_accuracy = [self.total_per_group[i]/self.count_per_group[i] for i in range(4) if self.count_per_group[i] > 0]
+        return {
+            'avg_group_accuracy': sum(group_accuracy)/len(group_accuracy),            'worst_group_accuracy': min(group_accuracy),
+
+        }
+    def reset(self):
+        self.total_per_group = [0]*4
+        self.count_per_group = [0]*4
+        
+    
+
+class DROMetrics(Metric):
+    def __init__(self,labels=2,confounders=2):
+        super().__init__()
+        self.test_accuracy = WeightedAverage()
+        self.group_accuracy = GroupAccuracy()
+
+    def update(self,logits,y,g):
+        #compute accuracy
+        is_correct = (torch.argmax(logits,dim=1) == y).float()
+        self.test_accuracy.update(is_correct.mean().item(),y.size(0))
+        self.group_accuracy.update(logits,y,g)
+
+    def compute(self):
+        return {
+            'test_accuracy': self.test_accuracy.compute(),
+            **self.group_accuracy.compute()
+        }
+    def reset(self):
+        self.test_accuracy.reset()
+        self.group_accuracy.reset()

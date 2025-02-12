@@ -41,19 +41,23 @@ class CelebADataset(Dataset):
         if transforms is None:
             self.transform = default_celeba_transform(split)
         else:
-            self.transform = transform
+            self.transform = transforms
         self.target_transform = target_transform
         # Load attributes and partitions using the _load_csv method
-        attributes_csv = self._load_csv(attr_file, header=1)
-        splits_csv = self._load_csv(partition_file)
+        self.attributes_csv = self._load_csv(attr_file, header=1)
+        self.splits_csv = self._load_csv(partition_file)
         # Filter images based on the split
+        mask = self.filter_data(split)
+
+        self.filename = [self.splits_csv.index[i] for i in torch.squeeze(torch.nonzero(mask))]
+        self.attributes = self.attributes_csv.data[mask]
+        self.attr_names = self.attributes_csv.header
+
+    def filter_data(self,split):
         partition_map = {'train': 0, 'val': 1, 'test': 2}               
         split_ = partition_map[split]
-        mask = slice(None) if split_ is None else (splits_csv.data == split_).squeeze()
-        self.filename = [splits_csv.index[i] for i in torch.squeeze(torch.nonzero(mask))]
-        self.attributes = attributes_csv.data[mask]
-        self.attr_names = attributes_csv.header
-        
+        mask = slice(None) if split_ is None else (self.splits_csv.data == split_).squeeze()
+        return mask
 
     def _load_csv(self, filename: str, header: Optional[int] = None) -> CSV:
         with open(os.path.join(self.root, self.base_folder, filename)) as csv_file:
@@ -68,7 +72,6 @@ class CelebADataset(Dataset):
         indices = [row[0] for row in data]
         data = [row[1:] for row in data]
         data_int = [list(map(int, i)) for i in data]
-
         return CSV(headers, indices, torch.tensor(data_int))
         
     def __len__(self) -> int:
@@ -86,6 +89,17 @@ class CelebADataset(Dataset):
             attrs = self.target_transform(attrs)
 
         return {"X": image, "label": attrs, "idx": int(self.filename[idx].split(".")[0])}
+
+class BlondFemaleDataset(CelebADataset):
+    def filter_data(self,split):
+        partition_map = {'train': 0, 'val': 1, 'test': 2}               
+        split_ = partition_map[split]
+        mask = slice(None) if split_ is None else (self.splits_csv.data == split_).squeeze()
+        if split == 'train':
+            mask = mask & torch.logical_not(torch.logical_and(self.attributes_csv.data[:,9] == 1, self.attributes_csv.data[:,20] == -1))
+        elif split == 'val':
+            mask = mask & torch.logical_and(self.attributes_csv.data[:,9] == 1, self.attributes_csv.data[:,20] == -1)
+        return mask
 
 class AttrCelebALatent(CelebADataset):
     def __init__(self, celeba_dir,latent_dir,split='train'):
@@ -111,7 +125,7 @@ class AttrCelebALatent(CelebADataset):
     def __getitem__(self, index):
         self.images = np.load(self.latent_dir+"/{:06d}.npy".format(int(self.filename[index].split(".")[0])))
         self.labels = self.attributes[index]
-        return {"X": self.images, "label": (self.labels[[20,9]]+1)//2, 'label_null': torch.ones_like(self.labels[[20,9]])*2}
+        return {"X":torch.tensor(self.images), "label": (self.labels[[20,9]]+1)//2, 'label_null': torch.ones_like(self.labels[[20,9]])*2}
     def __len__(self):
         return len(self.attributes)
 
@@ -124,13 +138,14 @@ class CompositionalBlondMale(AttrCelebALatent):
     LC          88.3 (0.3)     70.7 (0.7)      21.0 (2.1)
     sLA         88.3 (0.3)     71.0 (0.6)      21.3 (1.9)
     CRM         93.0 (0.0)     85.7 (0.3)      73.3 (1.8)
+    CoInD       97.93          97.18           93.95
     """
     def filter_data(self,split):
-        partition_map = {'train': 0, 'val': 1, 'test': 2}               
+        partition_map = {'train': 0, 'val': 1, 'test': 2}  
         split_ = partition_map[split]
         mask = slice(None) if split_ is None else (self.splits_csv.data == split_).squeeze()
         if split == 'train':
-            mask = mask & torch.logical_not(torch.logical_and(self.attributes_csv.data[:,9] == 1, self.attributes_csv.data[:,20] == -1))
+           mask = mask & torch.logical_not(torch.logical_and(self.attributes_csv.data[:,9] == 1, self.attributes_csv.data[:,20] == -1))
         elif split == 'val':
             mask = mask & torch.logical_and(self.attributes_csv.data[:,9] == 1, self.attributes_csv.data[:,20] == -1)
         return mask 

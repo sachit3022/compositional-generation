@@ -58,6 +58,7 @@ class CondDDIMPipeline(DDIMPipeline):
     def __init__(self, unet, scheduler,vae: Optional[AutoencoderKL] = None):
         super().__init__(unet, scheduler)
         self.vae = vae
+        self.register_modules(vae=vae)
     """
     A PyTorch Lightning module that implements the DDIM pipeline for image data. Taken from the original DDIM implementation."""
     @torch.no_grad()
@@ -107,8 +108,8 @@ class CondDDIMPipeline(DDIMPipeline):
             # eta corresponds to η in paper and should be between [0, 1]
             # do x_t -> x_t-1
             #train_timesteps 
-            model_output = process_query(self.unet, image, t,query, guidance_scale, null_token)
-            #model_output = self.unet(image, t,query, guidance_scale=guidance_scale, null_token=null_token)
+            #model_output = process_query(self.unet, image, t,query, guidance_scale, null_token)
+            model_output = self.unet(image, t,query, guidance_scale=guidance_scale, null_token=null_token)
             image = self.scheduler.step(
                 model_output, t, image, eta=eta, use_clipped_model_output=use_clipped_model_output, generator=generator
             ).prev_sample
