@@ -1,4 +1,4 @@
-_target_: score.diffusion.ComposableDiffusion
+_target_: score.trainer.ComposableDiffusion
 
 model:
   _target_: models.conditional_unet.ClassConditionalUnet
@@ -9,11 +9,8 @@ model:
   out_channels: 16 
   center_input_sample: false
   time_embedding_type: positional
-
-
-
-
 lambda_coind : 0.0
+
 noise_scheduler:
   _target_: diffusers.DDPMScheduler
   num_train_timesteps: 1000

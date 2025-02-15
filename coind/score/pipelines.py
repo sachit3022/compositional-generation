@@ -21,37 +21,89 @@ import itertools
 from scipy.special import rel_entr
 import numpy as np
 import logging
-from diffusers import AutoencoderKL
+from diffusers import AutoencoderKL,UNet2DModel
 
 
-def process_query(unet, image, t,query, guidance_scale, null_token):
-    """
-    image: B x C x H x W
-    query: B x Q x D
-    guidance_scale: Union[float,int,torch.Tensor]
-    null_token: B x D
-    """
-    #guidance scale can be a scalar or a list of scalars
-    if isinstance(guidance_scale, Union[float,int]):
-        model_in = torch.cat([image, image], 0)
-        attr_in = torch.cat([null_token, query], 0)
-        model_output = unet(model_in, t, attr_in)
-        model_output_uncond, model_output_cond = model_output.chunk(2, dim=0)
-        model_output = (1 - guidance_scale) * model_output_uncond + guidance_scale * model_output_cond
-        return model_output
-    elif isinstance(guidance_scale, list):
-        if len(guidance_scale) != query.size(1):
-            raise ValueError("guidance scale should be same as class labels")
+
+class ModelWrapper(UNet2DModel):
+    def __init__(self, model):
+        super().__init__()
+        self.model = model
+
+    @torch.no_grad()
+    def forward(self, x, t, y, **kwargs):
+        # query, guidance_scale, null_token
+        
+        if 'null_token' not in kwargs:
+            raise ValueError('null_token is not provided')    
+        
+        null_token = kwargs['null_token']
+        query,guidance_scale = self.prepare_query(y,null_token, kwargs.get('guidance_scale', 7.5))
         B,Q,D = query.size()
-        model_in = torch.cat([image]*(Q+1), 0)
+        model_in = torch.cat([x]*(Q+1), 0)
         query = query.transpose(1, 0).reshape(B*Q, D)
         query = torch.cat([null_token, query], 0)
-        model_output = unet(model_in, t, query)
+        model_output = self.model(model_in, t, query)
         chunk_model_output = model_output.chunk(Q+1, dim=0)
         model_output = chunk_model_output[0] + sum([guidance_scale[i]*(chunk_model_output[i+1] - chunk_model_output[0]) for i in range(Q)])
         return model_output
-    else:
-        raise ValueError("guidance scale should be a scalar or a tensor")
+    #config should be same as the model
+    @property
+    def config(self):
+        return self.model.config
+    def prepare_query(self,y,null_token,guidance_scale):
+        raise NotImplementedError
+
+
+class ANDquery(ModelWrapper):
+    def prepare_query(self,y,null_token,guidance_scale):
+        B,D = y.size()
+        query = null_token.repeat(D,1).to(dtype=y.dtype,device=y.device)
+        query = query.reshape(B,D,D)
+        for i in range(D):
+            query[:,i,i] = y[:,i]
+        guidance_scale = [guidance_scale]*D
+        return query,guidance_scale
+
+class CFGquery(ModelWrapper):
+    def prepare_query(self,y,null_token,guidance_scale):
+        query = y.unsqueeze(dim=1)
+        guidance_scale = [guidance_scale]*1
+        return query,guidance_scale
+
+
+
+
+
+
+# def process_query(unet, image, t,query, guidance_scale, null_token):
+#     """
+#     image: B x C x H x W
+#     query: B x Q x D
+#     guidance_scale: Union[float,int,torch.Tensor]
+#     null_token: B x D
+#     """
+#     #guidance scale can be a scalar or a list of scalars
+#     if isinstance(guidance_scale, Union[float,int]):
+#         model_in = torch.cat([image, image], 0)
+#         attr_in = torch.cat([null_token, query], 0)
+#         model_output = unet(model_in, t, attr_in)
+#         model_output_uncond, model_output_cond = model_output.chunk(2, dim=0)
+#         model_output = (1 - guidance_scale) * model_output_uncond + guidance_scale * model_output_cond
+#         return model_output
+#     elif isinstance(guidance_scale, list):
+#         if len(guidance_scale) != query.size(1):
+#             raise ValueError("guidance scale should be same as class labels")
+#         B,Q,D = query.size()
+#         model_in = torch.cat([image]*(Q+1), 0)
+#         query = query.transpose(1, 0).reshape(B*Q, D)
+#         query = torch.cat([null_token, query], 0)
+#         model_output = unet(model_in, t, query)
+#         chunk_model_output = model_output.chunk(Q+1, dim=0)
+#         model_output = chunk_model_output[0] + sum([guidance_scale[i]*(chunk_model_output[i+1] - chunk_model_output[0]) for i in range(Q)])
+#         return model_output
+#     else:
+#         raise ValueError("guidance scale should be a scalar or a tensor")
 
 
 class CondDDIMPipeline(DDIMPipeline):
@@ -107,8 +159,7 @@ class CondDDIMPipeline(DDIMPipeline):
             # 2. predict previous mean of image x_t-1 and add variance depending on eta
             # eta corresponds to η in paper and should be between [0, 1]
             # do x_t -> x_t-1
-            #train_timesteps 
-            #model_output = process_query(self.unet, image, t,query, guidance_scale, null_token)
+            #train_timesteps
             model_output = self.unet(image, t,query, guidance_scale=guidance_scale, null_token=null_token)
             image = self.scheduler.step(
                 model_output, t, image, eta=eta, use_clipped_model_output=use_clipped_model_output, generator=generator

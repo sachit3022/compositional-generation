@@ -1,4 +1,4 @@
-_target_: score.diffusion.ComposableDiffusion
+_target_: score.trainer.ComposableDiffusion
 
 model:
   _target_: models.conditional_unet.ClassConditionalUnet
@@ -9,7 +9,6 @@ model:
   out_channels: 3 
   layers_per_block: 2
   block_out_channels: [56, 112, 168] 
-  dropout: 0.1
   attention_head_dim:  8
   class_embed_type: null
   norm_num_groups: 8
@@ -33,9 +32,8 @@ optimizer:
   _target_: torch.optim.AdamW
   _partial_: true
   lr: 1.0e-3
-  weight_decay: 1.0e-5
 scheduler:
   _target_: diffusers.optimization.get_cosine_schedule_with_warmup
   _partial_: true
-  num_warmup_steps: 2000
-  num_training_steps: 20000
+  num_warmup_steps: 5000
+  num_training_steps: 50000

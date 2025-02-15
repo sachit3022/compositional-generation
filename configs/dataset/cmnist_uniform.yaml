@@ -13,14 +13,14 @@ val_dataset:
   support: 'uniform'
   
 train_dataloader:
-  batch_size: 64
+  batch_size: 256
   num_workers: 4
   persistent_workers: True
   shuffle: True
 
 val_dataloader:
-  batch_size: 64
+  batch_size: 256
   num_workers: 4
   persistent_workers: True
-  shuffle: True
+  shuffle: False
 

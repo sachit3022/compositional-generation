@@ -1,27 +1,52 @@
 defaults:
-  - /diffusion: cmnist_dm
   - /dataset: cmnist_uniform
   - _self_
 
+model:
+  _target_: models.conditional_unet.ClassConditionalUnet
+  num_class_per_label:
+  - 10
+  - 10
+  interaction: sum
+  sample_size: 28
+  in_channels: 3
+  out_channels: 3
+  layers_per_block: 2
+  block_out_channels:
+  - 56
+  - 112
+  - 168
+  dropout: 0.1
+  attention_head_dim: 8
+  class_embed_type: null
+  norm_num_groups: 8
+  act_fn: gelu
+  down_block_types:
+  - DownBlock2D
+  - AttnDownBlock2D
+  - AttnDownBlock2D
+  up_block_types:
+  - AttnUpBlock2D
+  - AttnUpBlock2D
+  - UpBlock2D
+
+noise_scheduler:
+  _target_: diffusers.DDPMScheduler
+  num_train_timesteps: 1000
+  clip_sample: true
+  prediction_type: epsilon
+  beta_schedule: linear
+
 seed: 42
-checkpoint: checkpoints/cmnist/cmnist_partial_coind.ckpt
+checkpoint_path: checkpoints/cmnist/cmnist_partial_coind.ckpt
 
-sampling:
-    _target_: score.pipelines.CondDDIMPipeline
-    _partial_: true
-    
-metrics:
-  cs:
-    _target_: score.metrics.CS
-    num_classes_per_label: ${diffusion.model.num_class_per_label}
-    classifer_checkpoint: checkpoints/cs_classifier/cmnist.ckpt
-  quality:
-    _target_: score.metrics.Quality
-    output_dir: ${hydra:run.dir}
-  jsd:
-    _target_: score.metrics.JSD
-    num_classes_per_label: ${diffusion.model.num_class_per_label}
-
+classifier: 
+  _target_: cs_classifier.models.MultiLabelClassifier
+  base_model: 
+    _target_: torchvision.models.resnet18
+  num_classes_per_label: ${model.num_class_per_label}
+  
+classifer_checkpoint: checkpoints/cs_classifier/cmnist.ckpt  
 
 
 

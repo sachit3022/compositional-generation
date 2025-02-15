@@ -28,6 +28,7 @@ class ClassConditionalUnet(UNet2DModel):
             )
         if _XFORMERS_AVAILABLE:
             self.enable_xformers_memory_efficient_attention()
+        self.num_classes_per_label = num_class_per_label
             
     def forward(self, x,t,y=None):
         """

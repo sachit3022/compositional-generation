@@ -1,4 +1,4 @@
-_target_: score.diffusion.ComposableDiffusion
+_target_: score.trainer.ComposableDiffusion
 
 model:
   _target_: models.clip_unet.ProjUnetConditional

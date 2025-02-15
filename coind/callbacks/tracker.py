@@ -14,6 +14,7 @@ from typing import Optional, List
 from utils import true_generated_image_grid_save
 from metrics import JSD, CS, R2, Quality
 from cs_classifier.models import MultiLabelClassifier
+from score.pipelines import ANDquery,CFGquery
 
 def prepare_and_query(y,null_token,guidance_scale):
     B,Q = y.size()
@@ -86,8 +87,7 @@ class GenerationMetrics(Callback):
                 output_shape = (self.vae.config.in_channels,self.vae.config.sample_size,self.vae.config.sample_size)
             else:
                 output_shape = (pl_module.model.config.in_channels,pl_module.model.config.sample_size,pl_module.model.config.sample_size)
-       
-            self.sampling_pipe = self.sampling_pipe_partial(unet = pl_module.model,scheduler=pl_module.noise_scheduler,vae=self.vae)
+            self.sampling_pipe = self.sampling_pipe_partial(unet = ANDquery(pl_module.model),scheduler=pl_module.noise_scheduler,vae=self.vae)
             
             if "cs" in self.metrics:
                 self.cs_metric_logger = {
@@ -130,14 +130,14 @@ class GenerationMetrics(Callback):
         We focus on AND composition for tracking the training metrics
         """
         x,y,null_token  = batch["X"], batch["label"], batch["label_null"]    
-        query,guidance_scale = prepare_and_query(y,null_token,self.guidance_scale)
         generated_images = self.sampling_pipe(batch_size= x.size(0), 
                                 num_inference_steps= self.num_inference_steps,
                                 return_dict= True,
                                 use_clipped_model_output = True,
-                                query = query,
-                                guidance_scale=guidance_scale,
+                                query = y,
+                                guidance_scale=self.guidance_scale,
                                 null_token=null_token)[0]
+        query,guidance_scale = prepare_and_query(y,null_token,self.guidance_scale)
         
         if self.vae is not None:
             x = self.vae.decode(x/ self.vae.config.scaling_factor)[0]

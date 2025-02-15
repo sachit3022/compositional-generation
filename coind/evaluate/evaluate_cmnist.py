@@ -1,5 +1,88 @@
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).absolute().parent.parent))
+import os
+import logging
+import torch
+import hydra
+from hydra.core.hydra_config import HydraConfig
+from hydra.utils import instantiate
+from tqdm import tqdm
+from utils import set_seed
+from metrics import JSD, CS
+from score.pipelines import ANDquery,CFGquery, ModelWrapper, CondDDIMPipeline
+import csv
+
+if torch.cuda.is_available():
+    device = torch.device('cuda')
+
+def prepare_and_query(y,null_token,guidance_scale):
+    B,Q = y.size()
+    query = null_token.repeat(Q,1).to(dtype=y.dtype,device=y.device)
+    query = query.reshape(B,Q,Q)
+    for i in range(Q):
+        query[:,i,i] = y[:,i]
+    guidance_scale = [guidance_scale]*Q
+    return query,guidance_scale
+
+def digit_not_query(y,null_token,guidance_scale):
+    B,Q = y.size()
+    assert Q == 2
+    query = null_token.repeat(3,1).to(dtype=y.dtype,device=y.device)
+    query = query.reshape(B,3,2)
+    query[:,0,1] = y[:,1]
+    query[:,1,0] = y[:,1]
+    query[:,2,0] = torch.clamp(y[:,1]-1, min=0, max=9)
+    guidance_scale = guidance_scale*3
+    guidance_scale = torch.tensor([2*guidance_scale,-1*guidance_scale,-1*guidance_scale]).to(query.device)
+    return query,guidance_scale
+
+def color_not_query(y,null_token,guidance_scale):
+    B,Q = y.size()
+    assert Q == 2
+    query = null_token.repeat(3,1).to(dtype=y.dtype,device=y.device)
+    query = query.reshape(B,3,2)
+    query[:,0,0] = y[:,0]
+    query[:,1,1] = y[:,0]
+    query[:,2,1] = torch.clamp(y[:,0]+1, min=0, max=9)
+    guidance_scale = guidance_scale*2
+    guidance_scale = torch.tensor([2*guidance_scale,-1*guidance_scale,-1*guidance_scale]).to(query.device)
+    return query,guidance_scale
+
+class DigitNotquery(ModelWrapper):
+    def prepare_query(self,y,null_token,guidance_scale):
+        return digit_not_query(y,null_token,guidance_scale)
+class ColorNotquery(ModelWrapper):
+    def prepare_query(self,y,null_token,guidance_scale):
+        return color_not_query(y,null_token,guidance_scale)
+
+def log_metrics(evaluation,jsd,prefix,epoch,output_dir):
+    # format and log metrics into nice dict and save to csv
+    csv_dict = {"epoch": epoch}
+    for cs_name,cs_dict in evaluation.items():
+        for metric_subname, metric in cs_dict["metric"].compute().items():
+            csv_dict[f'{prefix}/{cs_name}/{metric_subname}'] = metric.item()
+        for metric_subname, metric in jsd.compute().items():
+            csv_dict[f'{prefix}/jsd/{metric_subname}'] = metric.item()
+    #How to log to a csv file the keys might be different
+    filename = os.path.join(output_dir, f'{prefix}_metrics.csv')
+    file_exists = os.path.isfile(filename)
+    with open(filename, 'a') as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=csv_dict.keys())
+        if not file_exists:
+            writer.writeheader()
+        writer.writerow(csv_dict)
 
 
+
+
+
+def reset_metrics(evaluation,jsd):
+    for cs_name,cs_dict in evaluation.items():
+        cs_dict["metric"].reset()
+    jsd.reset()
+
+@hydra.main(config_path='../../configs',version_base='1.2',config_name='cmnist_inference')
 def main(cfg):
     
     ########## Hyperparameters and settings ##########
@@ -16,33 +99,52 @@ def main(cfg):
 
     ########## Load diffusion model #############
 
-    model = instantiate(cfg.diffusion.model)
-    noise_schedule = instantiate(cfg.diffusion.noise_scheduler)
-    model.load_state_dict(torch.load(cfg.diffusion_checkpoint_path)["model"])
-    sampler = CondDDIMPipeline(model, noise_scheduler)
+    model = instantiate(cfg.model).to(device)
+    scheduler = instantiate(cfg.noise_scheduler)
+    checkpoint_path = cfg.checkpoint_path
+    #load model
+    model_state_dict = {k.replace('model.',''): v for k, v in torch.load(checkpoint_path)['state_dict'].items() if k.startswith('model.')}
+    model.load_state_dict(model_state_dict, strict=False)
 
-    ########## Metrics #############
-    cs_metric = CS()
-    quality = Quality()
-    jsd = JSD()
+    # ########## Metrics #############
+    classifier = instantiate(cfg.classifier)
+    classifier.load_state_dict(torch.load(cfg.classifer_checkpoint)["state_dict"])
 
-    for pbar in [ tqdm(val_dataloader, desc="Val"),tqdm(train_dataloader, desc="Train")]:
-        
-        for batch in pbar:
-            #construct query for AND, NOT(1) and NOT(2) 
-                # Generate the image
-                # CS
-                # Quality
+    #evaluate for multiple queries
+    cs_evaluations = {"val":{
+                "and": {"sampler":CondDDIMPipeline(unet=ANDquery(model), scheduler=scheduler),"query":prepare_and_query,"metric":CS(classifier = classifier).to(device)},
+                "joint": {"sampler":CondDDIMPipeline(unet=CFGquery(model), scheduler=scheduler),"query":prepare_and_query,"metric":CS(classifier = classifier).to(device)},
+                "digit_not": {"sampler":CondDDIMPipeline(unet=DigitNotquery(model), scheduler=scheduler),"query":digit_not_query,"metric":CS(classifier = classifier).to(device)},
+                "color_not":{"sampler":CondDDIMPipeline(unet=ColorNotquery(model), scheduler=scheduler),"query":color_not_query,"metric":CS(classifier = classifier).to(device)}
+            },
+            "train":{
+                "and": {"sampler":CondDDIMPipeline(unet=ANDquery(model), scheduler=scheduler),"query":prepare_and_query,"metric":CS(classifier = classifier).to(device)},
+                "joint": {"sampler":CondDDIMPipeline(unet=CFGquery(model), scheduler=scheduler),"query":prepare_and_query,"metric":CS(classifier = classifier).to(device)},
+            }
+    }
 
+    ### hyperparameters ##
+    num_inference_steps = 100
+    guidance = 7.5
+    pipleline_kargs = {'num_inference_steps':num_inference_steps,
+                        'return_dict':True,
+                        'use_clipped_model_output':True,
+                        'guidance_scale':guidance}
 
-            #evaluate JSD
-            
-
-
-            #logger
-
-        #log the metrics similar to the ones seen in the paper
-        
+    for pbar in [ tqdm(val_dataloader, desc="val"),tqdm(train_dataloader, desc="train")]:
+        evaluation = cs_evaluations[pbar.desc]
+        jsd = JSD(model.num_classes_per_label).to(model.device)
+        for epoch,batch in enumerate(pbar):
+            x,y,null_token  = batch["X"].to(device), batch["label"].to(device), batch["label_null"].to(device)
+            # ########## JSD #############
+            jsd.update(batch, model,scheduler)
+            # ########## CS #############
+            for cs_name,cs_dict in evaluation.items():
+                generated_images = cs_dict["sampler"](batch_size= x.size(0),query = y,null_token=null_token,**pipleline_kargs)[0]
+                query,guidance_scale = cs_dict["query"](y,null_token,guidance)
+                cs_dict["metric"].update(generated_images,query,null_token,guidance_scale)
+            log_metrics(evaluation,jsd,pbar.desc,epoch,output_dir)
+        reset_metrics(evaluation,jsd)
 
 if __name__ == "__main__":
     main()

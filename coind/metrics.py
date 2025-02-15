@@ -39,7 +39,7 @@ class CS(Metric):
         pred_vals = torch.stack([torch.argmax(logits[i],dim=1) for i in range(len(logits))],dim=1)
         pred_vals = pred_vals.unsqueeze(dim=1).repeat(1,queries.size(1),1)
         y_null = y_null.unsqueeze(dim=1).repeat(1,queries.size(1),1)
-        equal = (pred_vals == queries)*(torch.tensor(guidance_scale)>0).to(pred_vals.device).unsqueeze(dim=0).unsqueeze(dim=2)
+        equal = torch.logical_not(torch.logical_xor(pred_vals == queries,(torch.tensor(guidance_scale)>0).to(pred_vals.device).unsqueeze(dim=0).unsqueeze(dim=2)))
         equal = torch.where(queries == y_null, torch.tensor(True), equal) #dont consider the null token
         equal = equal.all(dim=1)
         self.total_acc.update(equal.all(dim=1).float().mean(),generated_images.size(0))
