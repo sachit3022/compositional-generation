@@ -9,7 +9,7 @@ from hydra.core.hydra_config import HydraConfig
 from hydra.utils import instantiate
 from tqdm import tqdm
 from utils import set_seed
-from metrics import JSD, CS
+from metrics import JSD, CS, Diversity
 from score.pipelines import ANDquery,CFGquery, ModelWrapper, CondDDIMPipeline
 import csv
 
@@ -56,14 +56,19 @@ class ColorNotquery(ModelWrapper):
     def prepare_query(self,y,null_token,guidance_scale):
         return color_not_query(y,null_token,guidance_scale)
 
-def log_metrics(evaluation,jsd,prefix,epoch,output_dir):
+def log_metrics(evaluation,jsd,diversity, prefix,epoch,output_dir):
     # format and log metrics into nice dict and save to csv
     csv_dict = {"epoch": epoch}
     for cs_name,cs_dict in evaluation.items():
         for metric_subname, metric in cs_dict["metric"].compute().items():
             csv_dict[f'{prefix}/{cs_name}/{metric_subname}'] = metric.item()
-        for metric_subname, metric in jsd.compute().items():
-            csv_dict[f'{prefix}/jsd/{metric_subname}'] = metric.item()
+    for metric_subname, metric in jsd.compute().items():
+        csv_dict[f'{prefix}/jsd/{metric_subname}'] = metric.item()
+    
+    for i,div_metric in enumerate(diversity):
+        for metric_subname, metric in div_metric["metric"].compute().items():
+            csv_dict[f'{prefix}/{i}_diversity/{metric_subname}'] = metric
+
     #How to log to a csv file the keys might be different
     filename = os.path.join(output_dir, f'{prefix}_metrics.csv')
     file_exists = os.path.isfile(filename)
@@ -77,10 +82,13 @@ def log_metrics(evaluation,jsd,prefix,epoch,output_dir):
 
 
 
-def reset_metrics(evaluation,jsd):
+def reset_metrics(evaluation,jsd,color_diversity,digit_diversity):
     for cs_name,cs_dict in evaluation.items():
         cs_dict["metric"].reset()
     jsd.reset()
+    for metric in color_diversity:
+        metric["metric"].reset()
+
 
 @hydra.main(config_path='../../configs',version_base='1.2',config_name='cmnist_inference')
 def main(cfg):
@@ -102,11 +110,15 @@ def main(cfg):
     model = instantiate(cfg.model).to(device)
     scheduler = instantiate(cfg.noise_scheduler)
     checkpoint_path = cfg.checkpoint_path
-    #load model
     model_state_dict = {k.replace('model.',''): v for k, v in torch.load(checkpoint_path)['state_dict'].items() if k.startswith('model.')}
     model.load_state_dict(model_state_dict, strict=False)
 
     # ########## Metrics #############
+    ### hyperparameters ##
+    num_inference_steps = 100
+    guidance = 7.5
+    max_samples = 10_000
+
     classifier = instantiate(cfg.classifier)
     classifier.load_state_dict(torch.load(cfg.classifer_checkpoint)["state_dict"])
 
@@ -123,9 +135,8 @@ def main(cfg):
             }
     }
 
-    ### hyperparameters ##
-    num_inference_steps = 100
-    guidance = 7.5
+    diversity = [ {"sampler":CondDDIMPipeline(unet=CFGquery(model), scheduler=scheduler),"metric":Diversity(classifier = classifier).to(device)},{"sampler":CondDDIMPipeline(unet=ANDquery(model), scheduler=scheduler),"metric":Diversity(classifier = classifier).to(device)}]
+
     pipleline_kargs = {'num_inference_steps':num_inference_steps,
                         'return_dict':True,
                         'use_clipped_model_output':True,
@@ -136,15 +147,27 @@ def main(cfg):
         jsd = JSD(model.num_classes_per_label).to(model.device)
         for epoch,batch in enumerate(pbar):
             x,y,null_token  = batch["X"].to(device), batch["label"].to(device), batch["label_null"].to(device)
-            # ########## JSD #############
+            ########### JSD #############
             jsd.update(batch, model,scheduler)
-            # ########## CS #############
+            ########### CS #############
             for cs_name,cs_dict in evaluation.items():
                 generated_images = cs_dict["sampler"](batch_size= x.size(0),query = y,null_token=null_token,**pipleline_kargs)[0]
                 query,guidance_scale = cs_dict["query"](y,null_token,guidance)
                 cs_dict["metric"].update(generated_images,query,null_token,guidance_scale)
-            log_metrics(evaluation,jsd,pbar.desc,epoch,output_dir)
-        reset_metrics(evaluation,jsd)
+            ######### Diversity ##########
+            if pbar.desc == "val":
+                for i in range(2):
+                    query = y.clone()
+                    query[:,i] = null_token[:,i]
+                    generated_images = diversity[i]['sampler'](batch_size= x.size(0),query = query,null_token=null_token,**pipleline_kargs)[0]
+                    diversity[i]['metric'].update(generated_images,query,null_token)
+            else:
+                diversity = []
+
+            log_metrics(evaluation,jsd,diversity, pbar.desc,epoch,output_dir)
+            if (epoch+1)*batch["X"].size(0) > max_samples:
+                break
+        reset_metrics(evaluation,jsd,diversity)
 
 if __name__ == "__main__":
     main()

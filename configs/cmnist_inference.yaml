@@ -16,7 +16,6 @@ model:
   - 56
   - 112
   - 168
-  dropout: 0.1
   attention_head_dim: 8
   class_embed_type: null
   norm_num_groups: 8

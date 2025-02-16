@@ -24,6 +24,8 @@ class ComposableDiffusion(pl.LightningModule):
         if self.vae is not None:
             for param in self.vae.parameters():
                 param.requires_grad = False
+
+        self.coind_loss_type = kwargs.get('coind_loss_type',None) #regular or theoritical
     
     def prepare_labels(self,y,y_null):
         """
@@ -94,7 +96,10 @@ class ComposableDiffusion(pl.LightningModule):
         if self.lambda_coind > 0.0:    
             noise_pred_new = self.model(xt, timesteps,y_coind_obj).chunk(4,dim=0)
             l_coind = F.mse_loss(noise_pred_new[0]+noise_pred_new[1], noise_pred_new[2]+noise_pred_new[3])
-            l = l_diffusion + self.lambda_coind*l_coind
+            if self.coind_loss_type == 'theoritical':
+                l = torch.sqrt(l_diffusion) + self.lambda_coind*torch.sqrt(l_coind)
+            else:
+                l = l_diffusion + self.lambda_coind*l_coind
         else:
             with torch.no_grad():
                 noise_pred_new = self.model(xt, timesteps,y_coind_obj).chunk(4,dim=0)
@@ -137,8 +142,67 @@ class ComposableDiffusion(pl.LightningModule):
             timesteps = timesteps.repeat(4)
             noise_pred_new = self.model(xt, timesteps,y_coind_obj).chunk(4,dim=0)
             l_coind = F.mse_loss(noise_pred_new[0]+noise_pred_new[1], noise_pred_new[2]+noise_pred_new[3])
-            l = l_diffusion + self.lambda_coind*l_coind
+            if self.coind_loss_type == 'theoritical':
+                l = torch.sqrt(l_diffusion) + self.lambda_coind*torch.sqrt(l_coind)
+            else:
+                l = l_diffusion + self.lambda_coind*l_coind
         
         self.log_dict({'diffusion_loss': l_diffusion, 'val_loss': l,  'coind_loss':l_coind}, prog_bar=True,on_epoch=True,sync_dist=True)
         return {'loss': l}
+
+
+class Lace(ComposableDiffusion):
+
+    def training_step(self, batch, batch_idx):
+        
+        x0,y,y_null = batch['X'],batch['label'],batch['label_null']
+
+        if self.vae is not None:
+            x0 = self.vae.encode(x0)[0].mode()
+            x0 = x0 * self.vae.config.scaling_factor
+            
+        
+        y_diffusion_obj,y_coind_obj = self.prepare_labels(y,y_null)
+
+        noise = torch.randn_like(x0)
+        batch_size = x0.size(0)
+        timesteps = torch.randint(
+            0, self.noise_scheduler.num_train_timesteps,
+            (batch_size,),
+            device=self.device
+        ).long()
+
+        xt = self.noise_scheduler.add_noise(x0, noise, timesteps)
+        
+        noise_pred = self.model(xt, timesteps,y_diffusion_obj)
+        noise = noise.unsqueeze(1).repeat(1,2,*(1 for _ in range(len(noise_pred.shape)-2)))
+        train_loss  = F.mse_loss(noise_pred, noise)
+
+        self.log_dict({'train_loss': train_loss}, prog_bar=True,on_epoch=True,sync_dist=True)
+        return {'loss': train_loss}
+    
+    def validation_step(self,batch,batch_idx):
+        x0,y,y_null = batch['X'],batch['label'],batch['label_null']
+
+        if self.vae is not None:
+            x0 = self.vae.encode(x0)[0].mode()
+            x0 = x0 * self.vae.config.scaling_factor
+
+        y_diffusion_obj,y_coind_obj = self.prepare_labels(y,y_null)
+
+        noise = torch.randn_like(x0)
+        batch_size = x0.size(0)
+        timesteps = torch.randint(
+            0, self.noise_scheduler.num_train_timesteps,
+            (batch_size,),
+            device=self.device
+        ).long()
+        xt = self.noise_scheduler.add_noise(x0, noise, timesteps)
+
+        noise_pred = self.model(xt, timesteps,y_diffusion_obj)
+        noise = noise.unsqueeze(1).repeat(1,2,*(1 for _ in range(len(noise_pred.shape)-2)))
+        l_diffusion  = F.mse_loss(noise_pred, noise)
+        
+        self.log_dict({'val_loss': l_diffusion}, prog_bar=True,on_epoch=True,sync_dist=True)
+        return {'loss': l_diffusion}
 

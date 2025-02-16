@@ -5,33 +5,93 @@ channels:
 dependencies:
   - _libgcc_mutex=0.1=main
   - _openmp_mutex=5.1=1_gnu
+  - asttokens=2.0.5=pyhd3eb1b0_0
   - bzip2=1.0.8=h5eee18b_6
   - ca-certificates=2024.12.31=h06a4308_0
+  - comm=0.2.1=py312h06a4308_0
+  - debugpy=1.8.11=py312h6a678d5_0
+  - decorator=5.1.1=pyhd3eb1b0_0
+  - executing=0.8.3=pyhd3eb1b0_0
   - expat=2.6.4=h6a678d5_0
+  - ipykernel=6.29.5=py312h06a4308_0
+  - ipython=8.30.0=py312h06a4308_0
+  - jedi=0.19.2=py312h06a4308_0
+  - jupyter_client=8.6.0=py312h06a4308_0
+  - jupyter_core=5.7.2=py312h06a4308_0
   - ld_impl_linux-64=2.40=h12ee557_0
   - libffi=3.4.4=h6a678d5_1
   - libgcc-ng=11.2.0=h1234567_1
   - libgomp=11.2.0=h1234567_1
+  - libsodium=1.0.18=h7b6447c_0
   - libstdcxx-ng=11.2.0=h1234567_1
   - libuuid=1.41.5=h5eee18b_0
+  - matplotlib-inline=0.1.6=py312h06a4308_0
   - ncurses=6.4=h6a678d5_0
+  - nest-asyncio=1.6.0=py312h06a4308_0
   - openssl=3.0.15=h5eee18b_0
+  - packaging=24.2=py312h06a4308_0
+  - parso=0.8.4=py312h06a4308_0
+  - pexpect=4.8.0=pyhd3eb1b0_3
   - pip=24.2=py312h06a4308_0
+  - platformdirs=3.10.0=py312h06a4308_0
+  - prompt-toolkit=3.0.43=py312h06a4308_0
+  - prompt_toolkit=3.0.43=hd3eb1b0_0
+  - psutil=5.9.0=py312h5eee18b_1
+  - ptyprocess=0.7.0=pyhd3eb1b0_2
+  - pure_eval=0.2.2=pyhd3eb1b0_0
+  - pygments=2.15.1=py312h06a4308_1
   - python=3.12.8=h5148396_0
+  - python-dateutil=2.9.0post0=py312h06a4308_2
+  - pyzmq=26.2.0=py312h6a678d5_0
   - readline=8.2=h5eee18b_0
   - setuptools=75.1.0=py312h06a4308_0
+  - six=1.16.0=pyhd3eb1b0_1
   - sqlite=3.45.3=h5eee18b_0
+  - stack_data=0.2.0=pyhd3eb1b0_0
   - tk=8.6.14=h39e8969_0
-  - tzdata=2024b=h04d1e81_0
+  - tornado=6.4.2=py312h5eee18b_0
+  - traitlets=5.14.3=py312h06a4308_0
+  - wcwidth=0.2.5=pyhd3eb1b0_0
   - wheel=0.44.0=py312h06a4308_0
   - xz=5.4.6=h5eee18b_1
+  - zeromq=4.3.5=h6a678d5_0
   - zlib=1.2.13=h5eee18b_1
   - pip:
+      - absl-py==2.1.0
+      - accelerate==1.3.0
+      - aiohappyeyeballs==2.4.4
+      - aiohttp==3.11.11
+      - aiosignal==1.3.2
+      - antlr4-python3-runtime==4.9.3
+      - attrs==24.3.0
+      - certifi==2024.12.14
+      - charset-normalizer==3.4.1
+      - contourpy==1.3.1
+      - cycler==0.12.1
+      - diffusers==0.32.2
+      - dotmap==1.3.30
       - filelock==3.13.1
+      - fonttools==4.55.3
+      - frozenlist==1.5.0
       - fsspec==2024.2.0
+      - grpcio==1.69.0
+      - huggingface-hub==0.27.1
+      - hydra-core==1.3.2
+      - idna==3.10
+      - imageio==2.37.0
+      - importlib-metadata==8.5.0
+      - iprogress==0.4
+      - ipywidgets==8.1.5
       - jinja2==3.1.3
+      - joblib==1.4.2
+      - jupyterlab-widgets==3.0.13
+      - kiwisolver==1.4.8
+      - lightning-utilities==0.11.9
+      - markdown==3.7
       - markupsafe==2.1.5
+      - matplotlib==3.10.0
       - mpmath==1.3.0
+      - multidict==6.1.0
       - networkx==3.2.1
       - numpy==1.26.3
       - nvidia-cublas-cu12==12.1.3.1
@@ -46,10 +106,40 @@ dependencies:
       - nvidia-nccl-cu12==2.21.5
       - nvidia-nvjitlink-cu12==12.1.105
       - nvidia-nvtx-cu12==12.1.105
+      - omegaconf==2.3.0
+      - opencv-python==4.11.0.86
+      - pandas==2.2.3
       - pillow==10.2.0
+      - propcache==0.2.1
+      - protobuf==5.29.3
+      - pyparsing==3.2.1
+      - python-dotenv==1.0.1
+      - pytorch-lightning==2.5.0.post0
+      - pytz==2024.2
+      - pyyaml==6.0.2
+      - regex==2024.11.6
+      - requests==2.32.3
+      - safetensors==0.5.2
+      - scikit-learn==1.6.1
+      - scipy==1.15.1
+      - seaborn==0.13.2
       - sympy==1.13.1
+      - tensorboard==2.18.0
+      - tensorboard-data-server==0.7.2
+      - threadpoolctl==3.5.0
+      - tokenizers==0.21.0
       - torch==2.5.1+cu121
       - torchaudio==2.5.1+cu121
+      - torchmetrics==1.6.1
       - torchvision==0.20.1+cu121
+      - tqdm==4.67.1
+      - transformers==4.48.1
       - triton==3.1.0
       - typing-extensions==4.9.0
+      - tzdata==2025.1
+      - urllib3==2.3.0
+      - werkzeug==3.1.3
+      - widgetsnbextension==4.0.13
+      - yarl==1.18.3
+      - zipp==3.21.0
+prefix: /research/hal-gaudisac/miniconda3/envs/compositional-generation

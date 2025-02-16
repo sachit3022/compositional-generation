@@ -74,8 +74,45 @@ class CFGquery(ModelWrapper):
 
 
 
+class LaceModelWrapper(UNet2DModel):
+    def __init__(self, model):
+        super().__init__()
+        self.model = model
 
+    @torch.no_grad()
+    def forward(self, x, t, y, **kwargs):
+        # query, guidance_scale, null_token
+        
+        if 'null_token' not in kwargs:
+            raise ValueError('null_token is not provided')    
+        
+        null_token = kwargs['null_token']
+        query,guidance_scale = self.prepare_query(y,null_token, kwargs.get('guidance_scale', 7.5))
+        B,Q,D = query.size()
+        model_in = torch.cat([x]*(Q+1), 0)
+        query = query.transpose(1, 0).reshape(B*Q, D)
+        query = torch.cat([null_token, query], 0)
+        model_output = self.model(model_in, t, query)
+        chunk_model_output = model_output.chunk(Q+1, dim=0)
+        model_output = chunk_model_output[0] + sum([guidance_scale[i]*(chunk_model_output[i+1] - chunk_model_output[0]) for i in range(Q)])
+        return model_output.sum(dim=1)
+    #config should be same as the model
+    @property
+    def config(self):
+        return self.model.config
+    def prepare_query(self,y,null_token,guidance_scale):
+        raise NotImplementedError
 
+class LaceANDquery(LaceModelWrapper):
+    def prepare_query(self,y,null_token,guidance_scale):
+        query = y.unsqueeze(dim=1)
+        guidance_scale = [guidance_scale]*1
+        return query,guidance_scale
+
+class LaceCFGquery(LaceModelWrapper):
+    def prepare_query(self,y,null_token,guidance_scale):
+        raise ValueError("CFG query is not valid for lace model because there is no joint distribution")
+        
 # def process_query(unet, image, t,query, guidance_scale, null_token):
 #     """
 #     image: B x C x H x W

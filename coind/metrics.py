@@ -9,6 +9,8 @@ from typing import List, Union, Tuple
 import itertools
 from scipy.special import rel_entr
 from utils import true_generated_image_grid_save,save_images_in_folder
+from collections import defaultdict
+from collections import Counter
 
 
 class WeightedAverage(Metric):
@@ -213,3 +215,39 @@ class DROMetrics(Metric):
     def reset(self):
         self.test_accuracy.reset()
         self.group_accuracy.reset()
+
+
+class Diversity(Metric):
+    def __init__(self,classifier: nn.Module):
+        super().__init__()
+        self.classifier = classifier
+        self.classifier.eval()
+        self.uncontrolled_diversity = defaultdict(Counter)
+
+    @torch.no_grad()
+    def update(self,generated_images,queries,y_null):
+        logits = self.classifier(generated_images)
+        pred_vals = torch.stack([torch.argmax(logits[i],dim=1) for i in range(len(logits))],dim=1)
+        uncond_pred_vals = torch.where(queries== y_null, pred_vals, y_null)
+        for p,q in zip(uncond_pred_vals,queries):
+            self.uncontrolled_diversity[tuple(q.cpu().numpy())][tuple(p.cpu().numpy())] += 1
+    
+    def compute(self):
+        entropies = []
+        for k,v in self.uncontrolled_diversity.items():
+            total = sum(v.values())
+            for k1,v1 in v.items():
+                v[k1] = v1/total
+            #compute entropy
+            entropy = -sum([p*math.log(p) for p in v.values()])
+            entropies.append(entropy)
+        return {
+            'diversity': sum(entropies)/len(entropies)
+        }
+    def reset(self):
+        self.uncontrolled_diversity = defaultdict(Counter)
+
+
+
+
+

@@ -1,9 +1,8 @@
-_target_: score.trainer.ComposableDiffusion
+_target_: score.trainer.Lace
 
 model:
-  _target_: models.conditional_unet.ClassConditionalUnet
+  _target_: models.lace_unet.ComposableUnet
   num_class_per_label: [10,10]
-  interaction: sum
   sample_size: 28
   in_channels: 3
   out_channels: 3 
@@ -21,8 +20,6 @@ model:
     - AttnUpBlock2D
     - AttnUpBlock2D
     - UpBlock2D
-lambda_coind : 0.0
-coind_loss_type: null
 noise_scheduler:
   _target_: diffusers.DDPMScheduler
   num_train_timesteps: 1000
@@ -32,7 +29,7 @@ noise_scheduler:
 optimizer:
   _target_: torch.optim.AdamW
   _partial_: true
-  lr: 3.0e-4
+  lr: 1.0e-4
 scheduler:
   _target_: diffusers.optimization.get_cosine_schedule_with_warmup
   _partial_: true
