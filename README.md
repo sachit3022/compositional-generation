@@ -94,7 +94,12 @@ Coming soon .....
 
 Coming soon ..... 
 
-
+### Utilty of CoInD
+ICLRW Synthetic data workshop: Compositional World Knowledge leads to High Utility Synthetic data
+To run the code follow the process above, the only change will be in the evaluation on Compositional Generalization task
+```bash
+python /coind/evaluate/evaluate_synthetic_data.py --sythetic_data_path=/path/to/synthetic_data --sythetic_data_path=/path/to/originaldata --train_on=synthetic 
+```
 
 ### Citation
 
