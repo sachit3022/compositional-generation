@@ -30,6 +30,7 @@ callbacks:
   jsd:
     _target_: callbacks.tracker.JSDTracker
     num_classes_per_label: ${diffusion.model.num_class_per_label}
+    log_interval: 4
 loggers:
   tensorboard_logger:
     _target_: pytorch_lightning.loggers.TensorBoardLogger
