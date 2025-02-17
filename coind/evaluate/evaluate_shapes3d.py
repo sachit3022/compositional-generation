@@ -25,38 +25,31 @@ def prepare_and_query(y,null_token,guidance_scale):
     guidance_scale = [guidance_scale]*Q
     return query,guidance_scale
 
-def digit_not_query(y,null_token,guidance_scale):
-    B,Q = y.size()
-    assert Q == 2
-    query = null_token.repeat(3,1).to(dtype=y.dtype,device=y.device)
-    query = query.reshape(B,3,2)
-    query[:,0,1] = y[:,1]
-    query[:,1,0] = y[:,1]
-    query[:,2,0] = torch.clamp(y[:,1]-1, min=0, max=9)
-    guidance_scale = guidance_scale*3
-    guidance_scale = torch.tensor([2*guidance_scale,-1*guidance_scale,-1*guidance_scale]).to(query.device)
+def shapes3d_not_query(y,null_token,guidance_scale):
+    B,D = y.size()
+    query = null_token.repeat(D+3,1).to(dtype=y.dtype,device=y.device)
+    query = query.reshape(B,D+3,D)
+    for i in [0,1,2,3]:
+        query[:,i,i] = y[:,i]
+    query[:,4,4] = y[:,5]
+    #negate the on 4th index
+    query[y[:,4] == 0,[5,6,7],4] = torch.tensor([1,2,3],dtype=y.dtype,device=y.device)
+    query[y[:,4] == 1,[5,6,7],4] = torch.tensor([0,2,3],dtype=y.dtype,device=y.device)
+    query[y[:,4] == 2,[5,6,7],4] = torch.tensor([0,1,3],dtype=y.dtype,device=y.device)
+    query[y[:,4] == 3,[5,6,7],4] = torch.tensor([0,1,2],dtype=y.dtype,device=y.device)
+    
+    guidance_scale = [guidance_scale]*D + [-guidance_scale]*3
     return query,guidance_scale
+        
+        
 
-def color_not_query(y,null_token,guidance_scale):
-    B,Q = y.size()
-    assert Q == 2
-    query = null_token.repeat(3,1).to(dtype=y.dtype,device=y.device)
-    query = query.reshape(B,3,2)
-    query[:,0,0] = y[:,0]
-    query[:,1,1] = y[:,0]
-    query[:,2,1] = torch.clamp(y[:,0]+1, min=0, max=9)
-    guidance_scale = guidance_scale*2
-    guidance_scale = torch.tensor([2*guidance_scale,-1*guidance_scale,-1*guidance_scale]).to(query.device)
-    return query,guidance_scale
 
-class DigitNotquery(ModelWrapper):
+class Shapes3dNotquery(ModelWrapper):
     def prepare_query(self,y,null_token,guidance_scale):
-        return digit_not_query(y,null_token,guidance_scale)
-class ColorNotquery(ModelWrapper):
-    def prepare_query(self,y,null_token,guidance_scale):
-        return color_not_query(y,null_token,guidance_scale)
+        return shapes3d_not_query(y,null_token,guidance_scale)
 
-def log_metrics(evaluation,jsd,diversity, prefix,epoch,output_dir):
+
+def log_metrics(evaluation,jsd, prefix,epoch,output_dir):
     # format and log metrics into nice dict and save to csv
     csv_dict = {"epoch": epoch}
     for cs_name,cs_dict in evaluation.items():
@@ -65,10 +58,6 @@ def log_metrics(evaluation,jsd,diversity, prefix,epoch,output_dir):
     for metric_subname, metric in jsd.compute().items():
         csv_dict[f'{prefix}/jsd/{metric_subname}'] = metric.item()
     
-    for i,div_metric in enumerate(diversity):
-        for metric_subname, metric in div_metric["metric"].compute().items():
-            csv_dict[f'{prefix}/{i}_diversity/{metric_subname}'] = metric
-
     #How to log to a csv file the keys might be different
     filename = os.path.join(output_dir, f'{prefix}_metrics.csv')
     file_exists = os.path.isfile(filename)
@@ -80,12 +69,10 @@ def log_metrics(evaluation,jsd,diversity, prefix,epoch,output_dir):
 
 
 
-def reset_metrics(evaluation,jsd,diversity):
+def reset_metrics(evaluation,jsd):
     for cs_name,cs_dict in evaluation.items():
         cs_dict["metric"].reset()
     jsd.reset()
-    for div_metric in diversity:
-        div_metric["metric"].reset()
 
 
 @hydra.main(config_path='../../configs',version_base='1.2',config_name='cmnist_inference')
@@ -125,16 +112,13 @@ def main(cfg):
     cs_evaluations = {"val":{
                 "and": {"sampler":CondDDIMPipeline(unet=ANDquery(model), scheduler=scheduler),"query":prepare_and_query,"metric":CS(classifier = classifier).to(device)},
                 "joint": {"sampler":CondDDIMPipeline(unet=CFGquery(model), scheduler=scheduler),"query":prepare_and_query,"metric":CS(classifier = classifier).to(device)},
-                "digit_not": {"sampler":CondDDIMPipeline(unet=DigitNotquery(model), scheduler=scheduler),"query":digit_not_query,"metric":CS(classifier = classifier).to(device)},
-                "color_not":{"sampler":CondDDIMPipeline(unet=ColorNotquery(model), scheduler=scheduler),"query":color_not_query,"metric":CS(classifier = classifier).to(device)}
+                "not": {"sampler":CondDDIMPipeline(unet=Shapes3dNotquery(model), scheduler=scheduler),"query":shapes3d_not_query,"metric":CS(classifier = classifier).to(device)},
             },
             "train":{
                 "and": {"sampler":CondDDIMPipeline(unet=ANDquery(model), scheduler=scheduler),"query":prepare_and_query,"metric":CS(classifier = classifier).to(device)},
                 "joint": {"sampler":CondDDIMPipeline(unet=CFGquery(model), scheduler=scheduler),"query":prepare_and_query,"metric":CS(classifier = classifier).to(device)},
             }
     }
-
-    diversity = [ {"sampler":CondDDIMPipeline(unet=CFGquery(model), scheduler=scheduler),"metric":Diversity(classifier = classifier).to(device)},{"sampler":CondDDIMPipeline(unet=ANDquery(model), scheduler=scheduler),"metric":Diversity(classifier = classifier).to(device)}]
 
     pipleline_kargs = {'num_inference_steps':num_inference_steps,
                         'return_dict':True,
@@ -153,20 +137,10 @@ def main(cfg):
                 generated_images = cs_dict["sampler"](batch_size= x.size(0),query = y,null_token=null_token,**pipleline_kargs)[0]
                 query,guidance_scale = cs_dict["query"](y,null_token,guidance)
                 cs_dict["metric"].update(generated_images,query,null_token,guidance_scale)
-            ######### Diversity ##########
-            if pbar.desc == "val":
-                for i in range(2):
-                    query = y.clone()
-                    query[:,i] = null_token[:,i]
-                    generated_images = diversity[i]['sampler'](batch_size= x.size(0),query = query,null_token=null_token,**pipleline_kargs)[0]
-                    diversity[i]['metric'].update(generated_images,query,null_token)
-            else:
-                diversity = []
-
-            log_metrics(evaluation,jsd,diversity, pbar.desc,epoch,output_dir)
+            log_metrics(evaluation,jsd, pbar.desc,epoch,output_dir)
             if (epoch+1)*batch["X"].size(0) > max_samples:
                 break
-        reset_metrics(evaluation,jsd,diversity)
+        reset_metrics(evaluation,jsd)
 
 if __name__ == "__main__":
     main()

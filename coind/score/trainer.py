@@ -26,6 +26,7 @@ class ComposableDiffusion(pl.LightningModule):
                 param.requires_grad = False
 
         self.coind_loss_type = kwargs.get('coind_loss_type',None) #regular or theoritical
+        self.coind_masking = kwargs.get('coind_masking','pairwise') #pairwise or one''
     
     def prepare_labels(self,y,y_null):
         """
@@ -37,7 +38,7 @@ class ComposableDiffusion(pl.LightningModule):
         """
         p_null = 0.2
         masking = 'sample' #'batch' or 'sample' or 'none'
-        coind_masking = 'pairwise' #, 'random'( 0.1 )', 'one vs all'
+        #, 'random'( 0.1 )', 'one vs all'
 
 
         if masking == 'batch':
@@ -49,16 +50,23 @@ class ComposableDiffusion(pl.LightningModule):
             
         #this is i,-i setting for 2 columns everything is same but difference is for multi column values.
         batch_size, num_cols = y.size()
-        all_y_idx = torch.arange(num_cols).repeat(batch_size,1)
+        all_y_idx = torch.arange(num_cols).repeat(batch_size,1)    
         y_indices = torch.argsort(torch.rand(*all_y_idx.shape[:2]), dim=1)
         y_idx = torch.gather(all_y_idx, dim=-1, index=y_indices)[:,:2]
         x_idx = torch.arange(batch_size*4)
-        y_null = y_null.repeat(2,1)
-        y_coind_obj = y.clone().repeat(4,1)
-        y_coind_obj[x_idx[:batch_size],y_idx[:batch_size,0]] = y_null[x_idx[:batch_size],y_idx[:batch_size,0]]
-        y_coind_obj[x_idx[batch_size:batch_size*3],:] = y_null[x_idx[:batch_size*2],:]
-        y_coind_obj[x_idx[batch_size:batch_size*2],y_idx[:batch_size,0]] = y[x_idx[:batch_size],y_idx[:batch_size,0]]
-
+        y_null = y_null.repeat(4,1)
+        if self.coind_masking == 'pairwise':
+            y_coind_obj = y.clone().repeat(4,1)
+            y_coind_obj[x_idx[:batch_size],y_idx[:batch_size,0]] = y_null[x_idx[:batch_size],y_idx[:batch_size,0]]
+            y_coind_obj[x_idx[batch_size:batch_size*3],:] = y_null[x_idx[:batch_size*2],:]
+            y_coind_obj[x_idx[batch_size:batch_size*2],y_idx[:batch_size,0]] = y[x_idx[:batch_size],y_idx[:batch_size,0]]
+        elif self.coind_masking == 'one':
+            y_coind_obj = y.clone().repeat(4,1)
+            y_coind_obj[x_idx[:batch_size],y_idx[:batch_size,0]] = y_null[x_idx[:batch_size],y_idx[:batch_size,0]]
+            y_coind_obj[x_idx[batch_size:batch_size*3],:] = y_null[x_idx[:batch_size*2],:]
+            y_coind_obj[x_idx[batch_size:batch_size*2],y_idx[:batch_size,0]] = y[x_idx[:batch_size],y_idx[:batch_size,0]]    
+        else:
+            raise NotImplementedError
         return y_diffusion_obj,y_coind_obj
 
     

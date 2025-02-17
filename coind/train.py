@@ -12,6 +12,7 @@ def main(cfg):
     
     ########## Hyperparameters and settings ##########
     set_seed(cfg.seed)
+    torch.set_float32_matmul_precision('medium')
     ########## Dataset ##########
 
     train_dataset = instantiate(cfg.dataset.train_dataset)

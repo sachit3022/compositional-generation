@@ -60,9 +60,9 @@ class CS(Metric):
 class R2(Metric):
     def __init__(self,sample_size:Tuple[int]):
         super().__init__()
-        self.r2 = R2Score(multioutput='variance_weighted',num_outputs=math.prod(sample_size))
+        self.r2 = R2Score(multioutput='variance_weighted') #,num_regressors=math.prod(sample_size)
     def update(self,generated_images,true_images):
-        self.r2.update(generated_images,true_images)
+        self.r2.update(generated_images.reshape(generated_images.size(0),-1),true_images.reshape(true_images.size(0),-1))
     def compute(self):
         return {"r2":self.r2.compute()}
     def reset(self):
@@ -84,7 +84,8 @@ class JSD(Metric):
         self.time_limit = (300,600)
         self.jsd = WeightedAverage()
         self.guidance_accuracy = nn.ModuleList([WeightedAverage() for _ in range(2)])
-
+    
+    @torch.no_grad()
     def update(self,batch, model,scheduler):
         count = batch["X"].size(0)
         jsd,accuracy = self.guidance_evaluator(batch,model,scheduler)
@@ -103,6 +104,7 @@ class JSD(Metric):
         for acc in self.guidance_accuracy:
             acc.reset()
     
+    @torch.no_grad()
     def guidance_evaluator(self,batch,model,scheduler):
         """
         refactor guidance evaluator

@@ -9,27 +9,27 @@ import pytorch_lightning as pl
 import torch
 
 
-@hydra.main(config_path='../../configs', config_name='classifier/celeba',version_base='1.2')
+@hydra.main(config_path='../../configs', config_name='cs_cmnist',version_base='1.2')
 def main(cfg):
     
     ########## Hyperparameters and settings ##########
-    set_seed(cfg.classifier.seed)
+    set_seed(cfg.seed)
     ########## Dataset ##########
         
-    train_dataset = instantiate(cfg.classifier.dataset.train_dataset)
-    val_dataset = instantiate(cfg.classifier.dataset.val_dataset)
+    train_dataset = instantiate(cfg.dataset.train_dataset)
+    val_dataset = instantiate(cfg.dataset.val_dataset)
    
-    train_dataloader = torch.utils.data.DataLoader(dataset=train_dataset,**cfg.classifier.dataset.train_dataloader)
-    val_dataloader = torch.utils.data.DataLoader(dataset=val_dataset,**cfg.classifier.dataset.val_dataloader)
+    train_dataloader = torch.utils.data.DataLoader(dataset=train_dataset,**cfg.dataset.train_dataloader)
+    val_dataloader = torch.utils.data.DataLoader(dataset=val_dataset,**cfg.dataset.val_dataloader)
 
     ########## Callbacks and Logger ##########
     callbacks = []
-    for callback_name, callback in cfg.classifier.callbacks.items():
+    for callback_name, callback in cfg.callbacks.items():
         callbacks.append(instantiate(callback))
-    logger = instantiate(cfg.classifier.logger)
+    logger = instantiate(cfg.logger)
     ########## Train the diffusion model #############
-    classifier_model  = instantiate(cfg.classifier.trainer)
-    classifier_trainer = pl.Trainer(callbacks=callbacks,logger=logger,**cfg.classifier.training_config) 
+    classifier_model  = instantiate(cfg.trainer)
+    classifier_trainer = pl.Trainer(callbacks=callbacks,logger=logger,**cfg.training_config) 
     classifier_trainer.fit(classifier_model, train_dataloader, val_dataloader)
 
 

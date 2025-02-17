@@ -52,11 +52,11 @@ if __name__ == "__main__":
     train_transform = default_celeba_transform('train')
     val_transform = default_celeba_transform('val')
     sythetic_data = SytheticData(args.sythetic_data_path,transform=train_transform)
-    # original_data_train = CompositionalBlondMale(args.original_data_path, latent_dir = '/research/hal-gaudisac/Diffusion/compositional-generation/data/celeba/vae_train_features', split='train')
-    # original_data_val = BlondMale(args.original_data_path, latent_dir = '/research/hal-gaudisac/Diffusion/compositional-generation/data/celeba/vae_val_features', split='val')
+    original_data_train = CompositionalBlondMale(args.original_data_path, latent_dir = '/research/hal-gaudisac/Diffusion/compositional-generation/data/celeba/vae_train_features', split='train')
+    original_data_val = BlondMale(args.original_data_path, latent_dir = '/research/hal-gaudisac/Diffusion/compositional-generation/data/celeba/vae_val_features', split='val')
 
-    original_data_train = BlondFemaleDataset(args.original_data_path, split='train',transforms=train_transform,target_transform=blond_male_transform())
-    original_data_val = BlondFemaleDataset(args.original_data_path, split='train',transforms=val_transform,target_transform=blond_male_transform())
+    # original_data_train = BlondFemaleDataset(args.original_data_path, split='train',transforms=train_transform,target_transform=blond_male_transform())
+    # original_data_val = BlondFemaleDataset(args.original_data_path, split='train',transforms=val_transform,target_transform=blond_male_transform())
 
     sampler = None
     if args.train_on == "synthetic":
@@ -75,7 +75,6 @@ if __name__ == "__main__":
     
     
     model = models.resnet18(weights=ResNet18_Weights.DEFAULT)
-    #model.conv1 = nn.Conv2d(16, 64, kernel_size=7, stride=2, padding=3,bias=False)
     model.fc = nn.Linear(model.fc.in_features, 2)
     
     
@@ -85,49 +84,49 @@ if __name__ == "__main__":
 
     train_dataloader = DataLoader(train_data,batch_size=batch_size,num_workers=4,persistent_workers=True, sampler=sampler)
     val_dataloader = DataLoader(original_data_val,batch_size=batch_size,shuffle=False,num_workers=4,persistent_workers=True)
-    k=10020
-    for batch in val_dataloader:
-        x= batch['X']
-        for j in range(len(x)):
-            img = x[j].permute(1,2,0).cpu().numpy()
-            img = (img - img.min())/(img.max()-img.min())
-            Image.fromarray((img*255).astype(np.uint8)).save(f"samples/fid_og/sample_{k}.png")
-            k+=1
+    # k=10020
+    # for batch in val_dataloader:
+    #     x= batch['X']
+    #     for j in range(len(x)):
+    #         img = x[j].permute(1,2,0).cpu().numpy()
+    #         img = (img - img.min())/(img.max()-img.min())
+    #         Image.fromarray((img*255).astype(np.uint8)).save(f"samples/fid_og/sample_{k}.png")
+    #         k+=1
 
 
-    # epoch = 30
-    # train_acc = DROMetrics()
-    # val_acc = DROMetrics()
-    # optimizer = torch.optim.Adam(model.parameters(),lr=3e-4)
-    # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,epoch)
+    epoch = 30
+    train_acc = DROMetrics()
+    val_acc = DROMetrics()
+    optimizer = torch.optim.Adam(model.parameters(),lr=3e-4)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,epoch)
 
-    # for i  in range(epoch):
-    #     model.train()
-    #     for batch in train_dataloader:
-    #         x,y = batch['X'].to(device),batch['label'].to(device)
-    #         logits = model(x)
-    #         loss = F.cross_entropy(logits,y[:,1])
-    #         optimizer.zero_grad()
-    #         loss.backward()
-    #         optimizer.step()
-    #         scheduler.step()
-    #         train_acc.update(logits,y[:,1],y[:,0])
+    for i  in range(epoch):
+        model.train()
+        for batch in train_dataloader:
+            x,y = batch['X'].to(device),batch['label'].to(device)
+            logits = model(x)
+            loss = F.cross_entropy(logits,y[:,1])
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            scheduler.step()
+            train_acc.update(logits,y[:,1],y[:,0])
 
-    #     print(f"Epoch {i} Train Accuracy: {train_acc.compute()}")
-    #     train_acc.reset()
-    #     with torch.no_grad():
-    #         model.eval()
-    #         for batch in val_dataloader:
-    #             x,y = batch['X'].to(device),batch['label'].to(device)
-    #             logits = model(x)
-    #             val_acc.update(logits,y[:,1],y[:,0])
-    #             if i == 0:
-    #                 for j in range(10):
-    #                     img = x[j].permute(1,2,0).cpu().numpy()
-    #                     img = (img - img.min())/(img.max()-img.min())
-    #                     Image.fromarray((img*255).astype(np.uint8)).save(f"samples/sample_{j}.png")
+        print(f"Epoch {i} Train Accuracy: {train_acc.compute()}")
+        train_acc.reset()
+        with torch.no_grad():
+            model.eval()
+            for batch in val_dataloader:
+                x,y = batch['X'].to(device),batch['label'].to(device)
+                logits = model(x)
+                val_acc.update(logits,y[:,1],y[:,0])
+                if i == 0:
+                    for j in range(10):
+                        img = x[j].permute(1,2,0).cpu().numpy()
+                        img = (img - img.min())/(img.max()-img.min())
+                        Image.fromarray((img*255).astype(np.uint8)).save(f"samples/sample_{j}.png")
 
 
-    #     print(f"Epoch {i} Val Accuracy: {val_acc.compute()}")
-    #     val_acc.reset()
+        print(f"Epoch {i} Val Accuracy: {val_acc.compute()}")
+        val_acc.reset()
 

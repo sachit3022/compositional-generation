@@ -77,8 +77,9 @@ class GenerationMetrics(Callback):
             self.vae = vae
             self.guidance_scale = guidance_scale
             self.num_classes_per_label = num_classes_per_label
-            self.model = classifier
-            self.model.load_state_dict(torch.load(classifer_checkpoint)["state_dict"])
+            if classifier is not None:
+                self.model = classifier
+                self.model.load_state_dict(torch.load(classifer_checkpoint)["state_dict"])
             self.metrics = metrics
 
     def setup(self, trainer, pl_module, stage):
