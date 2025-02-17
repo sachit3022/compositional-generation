@@ -53,7 +53,7 @@ This repository is built on very cool, config management system called Hydra. Ad
 ### Classifier for Confirmity score
 To measure the faithfullness of the generation we have introduced confirmity score, refer to Appendix of the paper.
 ```bash
-python coind/cs_classifier/train.py
+python coind/cs_classifier/train.py --config-name=cs_cmnsit
 ```
 ### Diffusion in Latent Space
 For CelebA dataset, we perform diffusion on Latent space. To speed up the training process run generation on the latent space. ( we borrow this from fast-DiT ) 
