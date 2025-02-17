@@ -42,32 +42,42 @@ cd compositional-generation
 conda env create -f environment.yml
 conda activate compositional-generation
 ```
+### Download the datasets
+- ColoredMNIST, Shapes3D will be automatically downloaded when you first call the training
+- CelebA: Please refer to CelebA instructions to download the datasets.
 
-## CelebA
-Download CelebA from ....
-to speed up the training process run generation on the latent space.
-
-Extract 
+This repository is built on very cool, config management system called Hydra. Add the download location to the respective file in configs/datasets/*.yaml
 
 ## Training
-### Generative model
-Example script to run the training based on the dataset setup and the CoInD regularizer
+
+### Classifier for Confirmity score
+To measure the faithfullness of the generation we have introduced confirmity score, refer to Appendix of the paper.
+```bash
+python coind/cs_classifier/train.py --config-name=cs_cmnsit
+```
+### Diffusion in Latent Space
+For CelebA dataset, we perform diffusion on Latent space. To speed up the training process run generation on the latent space. ( we borrow this from fast-DiT ) 
+```bash
+torchrun --master_port=25670 coind/scripts/save_latent.py --encoder=vae --dataset=celeba --data-path=/path/to/celeba/ --features-path=data/celeba
+```
+### Train Diffusion model
+Modify the config of datasets( add /path/to/your/dataset) and callbacks CS(/path/to/your/checkpoint) or you can remove the callback. 
+Example script to run the training based on the dataset setup and the CoInD regularizer.
 ```bash
 python coind/train.py --config-name=cmnist dataset=cmnist_partial diffusion.lambda_coind=1.0
 ```
 This will create a folder called outputs/ and you can monitor the training via tensorboard or CSV generated in the output folder.
-### Classifier for Confirmity score
-
-
-
 
 ### Inference
 Once trained upload the checkpoint to checkpoints repository or download our checkpoints and place them in the checkpoints repository.
-> wget 
+
 #### Evaluation
-Confirmity Score
-To compute FID we use pytorch-fid to replicate the results please run the bash scripts of the evaluate/cmnist.sh
-FID: we use pytorch-fid
+Detail description of the metrics is provided in the paper.
+- JSD
+- Confirmity Score
+- R2 Score
+- Diversity
+- FID
 
 #### Generate 
 To have the guide to custom logical queries and fine grained control refer to our notbook.
@@ -75,23 +85,6 @@ To have the guide to custom logical queries and fine grained control refer to ou
 To train on custom dataset follow our guide
 #write a train_dataset and place it in the datasets/ folder
 
-### Repository structure
-Source code is present in CoInD repository. This repository consits of training module to train your models with CoInD built on lightning, huggingface and hydra for config management. 
-  <!-- -  CoInD/
-    - models ( Backbone for conditional denoising UNet / DiT ) 
-    - inference ( Code to perform sampling with AND and OR operations)
-    - score ( CoInD modules required for training: Loss, Noise schedule, EMA, ....)
-    - datasets ( Code to load datasets in a respective format )
-    - train.py ( training code integrating all the modules )
-    - inference.py ( let's you control the generation and store the module)
-    - evaluate
-        - FID.py
-        - confirmity_score.py
-        - jsd.py
-        - model_report.py
-    - scripts
-        - extract_latent.py ( To increase the speedup of the latent space diffsusion models, we pre-compute latents and store in the data folder )
-  - config/ ( For config mangement we leverage hydra ) -->
 
 
 ### Scripts for finetuning Stable Diffusion with CoInD
@@ -102,7 +95,12 @@ Coming soon .....
 
 Coming soon ..... 
 
-
+### Utilty of CoInD
+ICLRW Synthetic data workshop: Compositional World Knowledge leads to High Utility Synthetic data
+To run the code follow the process above, the only change will be in the evaluation on Compositional Generalization task
+```bash
+python /coind/evaluate/evaluate_synthetic_data.py --sythetic_data_path=/path/to/synthetic_data --sythetic_data_path=/path/to/originaldata --train_on=synthetic 
+```
 
 ### Citation
 
