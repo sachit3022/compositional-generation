@@ -1,0 +1,51 @@
+defaults:
+  - /dataset: shapes3d_uniform
+  - _self_
+
+model:
+  _target_: models.conditional_unet.ClassConditionalUnet
+  num_class_per_label: [10, 10, 10, 8, 4, 15]
+  interaction: sum
+  sample_size: 64
+  in_channels: 3
+  out_channels: 3
+  layers_per_block: 2
+  block_out_channels: [56, 112, 168, 224]
+  attention_head_dim: 8
+  class_embed_type: null
+  dropout: 0.1
+  norm_num_groups: 8
+  act_fn: gelu
+  down_block_types:
+  - DownBlock2D
+  - AttnDownBlock2D
+  - AttnDownBlock2D
+  - AttnDownBlock2D
+  up_block_types:
+  - AttnUpBlock2D
+  - AttnUpBlock2D
+  - AttnUpBlock2D
+  - UpBlock2D
+
+noise_scheduler:
+  _target_: diffusers.DDPMScheduler
+  num_train_timesteps: 1000
+  clip_sample: true
+  prediction_type: epsilon
+  beta_schedule: linear
+
+seed: 42
+checkpoint_path: checkpoints/shapes3d/shaoes3d_partial_coind.ckpt
+
+classifier: 
+  _target_: cs_classifier.models.MultiLabelClassifier
+  base_model: 
+    _target_: torchvision.models.resnet18
+  num_classes_per_label: ${model.num_class_per_label}
+  
+classifer_checkpoint: checkpoints/cs_classifier/shapes3d.ckpt  
+
+
+
+
+
