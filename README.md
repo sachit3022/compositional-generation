@@ -43,8 +43,9 @@ conda env create -f environment.yml
 conda activate compositional-generation
 ```
 ### Download the datasets
-- Shapes3D
-- CelebA
+- ColoredMNIST, Shapes3D will be automatically downloaded when you first call the training
+- CelebA: Please refer to CelebA instructions to download the datasets.
+
 This repository is built on very cool, config management system called Hydra. Add the download location to the respective file in configs/datasets/*.yaml
 
 ## Training
