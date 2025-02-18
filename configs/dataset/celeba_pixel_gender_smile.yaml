@@ -1,0 +1,30 @@
+train_dataset:
+  _target_: datasets.celeba.CelebADataset
+  root:  /research/hal-datastore/datasets/original/
+  split: 'train'
+  target_transform: 
+    _target_: datasets.celeba.male_smile_transform
+  size: 128
+  
+
+  
+val_dataset:
+  _target_: datasets.celeba.CelebADataset
+  root:  /research/hal-datastore/datasets/original/
+  split: 'val'
+  target_transform: 
+    _target_: datasets.celeba.male_smile_transform
+  size: 128
+
+  
+train_dataloader:
+  batch_size: 64
+  num_workers: 4
+  persistent_workers: True
+  shuffle: True
+
+val_dataloader:
+  batch_size: 64
+  num_workers: 4
+  persistent_workers: True
+  shuffle: False

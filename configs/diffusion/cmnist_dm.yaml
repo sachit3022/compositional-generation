@@ -35,7 +35,7 @@ optimizer:
   _partial_: true
   lr: 3.0e-4
   weight_decay: 0.0
-
+  
 scheduler:
   _target_: diffusers.optimization.get_cosine_schedule_with_warmup
   _partial_: true

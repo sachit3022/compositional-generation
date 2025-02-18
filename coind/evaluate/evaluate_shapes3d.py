@@ -10,7 +10,8 @@ from hydra.utils import instantiate
 from tqdm import tqdm
 from utils import set_seed
 from metrics import JSD, CS, Diversity
-from score.pipelines import ANDquery,CFGquery, ModelWrapper, CondDDIMPipeline
+from score.pipelines import CondDDIMPipeline
+from score.sampling import ANDquery,CFGquery, ModelWrapper
 import csv
 
 if torch.cuda.is_available():

@@ -55,13 +55,12 @@ class ComposableDiffusion(pl.LightningModule):
         y_idx = torch.gather(all_y_idx, dim=-1, index=y_indices)[:,:2]
         x_idx = torch.arange(batch_size*4)
         y_null = y_null.repeat(4,1)
-        if self.coind_masking == 'pairwise':
-            y_coind_obj = y.clone().repeat(4,1)
+        y_coind_obj = y.clone().repeat(4,1)
+        if self.coind_masking == 'pairwise':    
             y_coind_obj[x_idx[:batch_size],y_idx[:batch_size,0]] = y_null[x_idx[:batch_size],y_idx[:batch_size,0]]
             y_coind_obj[x_idx[batch_size:batch_size*3],:] = y_null[x_idx[:batch_size*2],:]
             y_coind_obj[x_idx[batch_size:batch_size*2],y_idx[:batch_size,0]] = y[x_idx[:batch_size],y_idx[:batch_size,0]]
         elif self.coind_masking == 'one':
-            y_coind_obj = y.clone().repeat(4,1)
             y_coind_obj[x_idx[:batch_size],y_idx[:batch_size,0]] = y_null[x_idx[:batch_size],y_idx[:batch_size,0]]
             y_coind_obj[x_idx[batch_size:batch_size*3],:] = y_null[x_idx[:batch_size*2],:]
             y_coind_obj[x_idx[batch_size:batch_size*2],y_idx[:batch_size,0]] = y[x_idx[:batch_size],y_idx[:batch_size,0]]    

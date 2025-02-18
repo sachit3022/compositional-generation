@@ -11,6 +11,23 @@ try:
 except Exception:
     _XFORMERS_AVAILABLE = False
 
+def initialize_weights(m):
+    for name, param in m.named_parameters():
+        if isinstance(m, nn.Conv2d):
+            if 'weight' in name:
+                torch.nn.init.kaiming_normal_(param, nonlinearity='relu')
+            elif 'bias' in name:
+                torch.nn.init.zeros_(param)
+        elif isinstance(m, nn.Linear):
+            if 'weight' in name:
+                torch.nn.init.kaiming_normal_(param, nonlinearity='relu')
+            elif 'bias' in name:
+                torch.nn.init.zeros_(param)
+        elif isinstance(m, nn.BatchNorm2d):
+            if 'weight' in name:
+                torch.nn.init.ones_(param)
+            elif 'bias' in name:
+                torch.nn.init.zeros_(param)
 
 class ClassConditionalUnet(UNet2DModel):
     def __init__(self,num_class_per_label,interaction=None,**kwargs):
@@ -29,6 +46,7 @@ class ClassConditionalUnet(UNet2DModel):
             )
         if _XFORMERS_AVAILABLE:
             self.enable_xformers_memory_efficient_attention()
+        initialize_weights(self)
         self.num_classes_per_label = num_class_per_label
             
     def forward(self, x,t,y=None):

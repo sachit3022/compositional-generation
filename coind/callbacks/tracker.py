@@ -14,7 +14,7 @@ from typing import Optional, List
 from utils import true_generated_image_grid_save
 from metrics import JSD, CS, R2, Quality
 from cs_classifier.models import MultiLabelClassifier
-from score.pipelines import ANDquery,CFGquery, LaceANDquery
+from score.sampling import ANDquery,CFGquery, LaceANDquery
 from score.trainer import ComposableDiffusion, Lace
 
 def prepare_and_query(y,null_token,guidance_scale):

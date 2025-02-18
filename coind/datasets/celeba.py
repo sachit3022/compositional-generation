@@ -13,33 +13,35 @@ class CSV:
         self.index= indices
         self.data = data
 
-def default_celeba_transform(split):
+def default_celeba_transform(split,size = 64):
     if split == 'train':
         return transforms.Compose([
-            transforms.Resize((64, 64)),
+            transforms.Resize((size, size)),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
         ])
     else:
         return transforms.Compose([
-            transforms.Resize((64, 64)),
+            transforms.Resize((size, size)),
             transforms.ToTensor(),
             transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
         ])
 
 def blond_male_transform():
     return lambda x: (x[[20,9]]+1)//2
+def male_smile_transform():
+    return lambda x: (x[[20,31]] +1)//2
         
 class CelebADataset(Dataset):
-    def __init__(self, root, split='train',transforms=None,target_transform=None):
+    def __init__(self, root, split='train',size=64,transforms=None,target_transform=None):
         self.root = root
         self.base_folder = 'celeba'
         self.img_dir = 'img_align_celeba'
         attr_file = 'list_attr_celeba.txt'
         partition_file = 'list_eval_partition.txt'
         if transforms is None:
-            self.transform = default_celeba_transform(split)
+            self.transform = default_celeba_transform(split,size)
         else:
             self.transform = transforms
         self.target_transform = target_transform

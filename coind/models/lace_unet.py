@@ -55,3 +55,29 @@ class ComposableUnet(nn.Module):
     def config(self):
         return self.models[0].config
             
+class ComposeModels(nn.Module):
+    """
+    This is for models that are trained independently that cannot fit a single GPU, we train separate models and then combine them
+    """
+    def __init__(self,models:List[nn.Module]) -> None:
+        super().__init__()
+        self.models = nn.ModuleList(models)
+    def forward(self,x,t,y=None):
+        """
+        x: B x C x H x W
+        y: B x num_class_per_label x C x H x W
+        """
+        #split along the batch dimension
+        y = torch.split(y,1,dim=1)
+        #concatinate along batch dimension
+        y = torch.cat([model(x,t,y_.view(-1)).unsqueeze(dim=1) for model,y_ in zip(self.models,y)],dim=1)
+        return y
+    @property
+    def device(self):
+        return self.models[0].device
+    @property
+    def dtype(self):
+        return self.models[0].dtype
+    @property
+    def config(self):
+        return self.models[0].config

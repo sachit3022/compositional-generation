@@ -20,7 +20,7 @@ trainer:
     _target_: models.MultiLabelClassifier
     base_model:
       _target_: torchvision.models.resnet18
-    num_classes_per_label:  ${classifier.trainer.num_classes_per_label}
+    num_classes_per_label:  ${trainer.num_classes_per_label}
   optimizer:
     _target_: torch.optim.AdamW
     _partial_: true
@@ -32,7 +32,7 @@ trainer:
     T_max: 10000
 
 training_config:
-  max_steps: ${classifier.trainer.scheduler.T_max}
+  max_steps: ${trainer.scheduler.T_max}
   accelerator: gpu
   gradient_clip_val: 1.0
   enable_checkpointing: true

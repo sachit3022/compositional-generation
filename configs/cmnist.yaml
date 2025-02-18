@@ -19,7 +19,7 @@ callbacks:
       _target_: score.pipelines.CondDDIMPipeline
       _partial_: true
     metrics: ["quality","cs"] 
-    log_interval: 20
+    log_interval: 5
     num_classes_per_label: ${diffusion.model.num_class_per_label}
     output_dir: ${hydra:run.dir}  
     classifier: 

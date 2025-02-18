@@ -10,7 +10,7 @@ from diffusers import DDPMScheduler,AutoencoderKL
 
 from models.conditional_unet import ClassConditionalUnet
 from score.pipelines import CondDDIMPipeline
-from score.sampling import ANDquery,CFGquery
+from score.sampling import ANDquery,CFGquery, LaceANDquery,LaceCFGquery
 from utils import set_seed
 from argparse import ArgumentParser
 
@@ -28,26 +28,8 @@ import numpy as np
 
 os.environ['MASTER_ADDR'] = 'localhost'
 os.environ['MASTER_PORT'] = '29500'
-def save_latent(query,null_token,generated_images,rank,save_folder,iteration=0):
-    metadata_list = []
-    for image_index, (image, q,nt) in enumerate(zip(generated_images, query,null_token)):
-        save_index = iteration+image_index
-        filename = f"image_{rank}_{save_index:06d}.npy" 
-        save_path = os.path.join(save_folder, "gen", filename)
-        np.save(save_path, image)
-        metadata = {'filename':filename, 'query': q.tolist(), 'null_token': nt.tolist()}
-        metadata_list.append(metadata)
-        
-    lock_file = os.path.join(save_folder, 'metadata.lock')
-    metadata_file = os.path.join(save_folder, 'metadata.json')
 
-    with FileLock(lock_file):
-        with open(metadata_file, 'a') as f:
-            for metadata in metadata_list:
-                json.dump(metadata, f)
-                f.write('\n')
         
-
 def save_images(query,null_token,generated_images,rank,save_folder,iteration=0):
     metadata_list = []
    
@@ -74,7 +56,7 @@ def setup(rank, world_size):
     dist.init_process_group("nccl", rank=rank, world_size=world_size, init_method="env://")
 
 
-def get_image_generation_pipeline(checkpoint_path,latent=False):
+def get_image_generation_pipeline(checkpoint_path,rank,composition):
 
     model_config = {
         '_target_': ClassConditionalUnet,
@@ -83,8 +65,9 @@ def get_image_generation_pipeline(checkpoint_path,latent=False):
         'in_channels': 16,
         'out_channels': 16, 
         'center_input_sample': False,
-        'time_embedding_type': 'positional'
+        'time_embedding_type': 'positional',
     }
+
     scheduler_config = {
         '_target_': DDPMScheduler,
         'num_train_timesteps': 1000,
@@ -92,57 +75,43 @@ def get_image_generation_pipeline(checkpoint_path,latent=False):
         "prediction_type": "epsilon",
         'beta_schedule': 'squaredcos_cap_v2',
     }
+
     model = hydra.utils.instantiate(model_config)
     scheduler = hydra.utils.instantiate(scheduler_config)
 
     #load model
-    model_state_dict = {k.replace('model.',''): v for k, v in torch.load(checkpoint_path,weights_only=False)['state_dict'].items() if k.startswith('model.')}
+    model_state_dict = {k.replace('model.',''): v for k, v in torch.load(checkpoint_path,weights_only=False,map_location=f"cuda:{rank}")['state_dict'].items() if k.startswith('model.')}
     model.load_state_dict(model_state_dict, strict=False)
-
-    #load vae
-    vae = None
-    if not latent:
-        vae = AutoencoderKL.from_pretrained('black-forest-labs/FLUX.1-schnell', subfolder='vae', cache_dir='checkpoints')        
-        vae.eval()
-
+    model.to(f"cuda:{rank}")
     model.eval()
-    and_model = ANDquery(model)
+
+
+    vae = AutoencoderKL.from_pretrained('black-forest-labs/FLUX.1-schnell', subfolder='vae', cache_dir='checkpoints', device_map=rank)
+    vae.eval()
+    and_model = composition(model)
     pipeline = CondDDIMPipeline(unet=and_model, scheduler=scheduler, vae=vae)
     return pipeline
 
-def generate_images(rank, world_size, checkpoint, num_images_per_gpu,latent):
+def generate_images(rank, world_size, checkpoint, num_images_per_gpu,filepath,composition,guidance_scale,query,null_token):
     setup(rank, world_size)
     torch.cuda.set_device(rank)
-    
-    pipeline = get_image_generation_pipeline(checkpoint,latent).to(rank)
-    if not latent:
-        pipeline.vae.to(rank)
-
+    batch_size = 32
+    pipeline = get_image_generation_pipeline(checkpoint,rank,composition=composition)
     set_seed(rank)
-
-    batch_size = 64
-    guidance_scale = [7.5,3.5]
     num_inference_steps = 250
-    filepath = "samples/exp15"
     os.makedirs(f"{filepath}/gen",exist_ok=True)
+    query = query.repeat(batch_size,1).to(rank)
+    null_token = null_token.repeat(batch_size,1).to(rank)
     for i in range(num_images_per_gpu//batch_size):
-
         with torch.no_grad():
-
-            query = torch.tensor([[0,1]]).to(rank).repeat(batch_size,1) #torch.randint(0,2,(batch_size,2)).to(rank)
-            null_token = torch.ones_like(query).to(rank)*2
-            
             generated_images = pipeline(batch_size=query.size(0), 
                             num_inference_steps= num_inference_steps,
                             return_dict= True,
                             use_clipped_model_output = True,
                             query = query,
                             guidance_scale=guidance_scale,
-                            null_token=null_token)[0].cpu().detach()
-            save_func = save_latent if latent else save_images
-            save_func(query,null_token,generated_images,rank,filepath,i*batch_size)
-
-    dist.destroy_process_group()
+                            null_token=null_token)[0].cpu().detach()*0.5+0.5 #denormalize
+            save_images(query,null_token,generated_images,rank,filepath,i*batch_size)
 
 
 if __name__ == '__main__':
@@ -153,22 +122,69 @@ if __name__ == '__main__':
         "vanilla":"/research/hal-gaudisac/Diffusion/compositional-generation/checkpoints/celeba/celeba_partial_diffusion.ckpt",
         "coind":'/research/hal-gaudisac/Diffusion/compositional-generation/checkpoints/celeba/celeba_partial_coind.ckpt',
     }
-
     args = ArgumentParser()
     args.add_argument('--num_of_images',type=int,default=10_000)
     args.add_argument('--checkpoint',type=str,default=checkpoints['coind'])
-    args.add_argument('--latent',type=bool,default=False)
-
-
     args = args.parse_args()
-
+    
     world_size = torch.cuda.device_count()
     num_images_per_gpu = args.num_of_images // world_size
-    
-    mp.spawn(generate_images, args=(world_size,args.checkpoint,num_images_per_gpu,args.latent), nprocs=world_size)
+    exp = "coind_gender_smile" 
 
-    
+    settings_to_evaluate = [
+    {
+        "filepath": f"samples/{exp}/and_9_9",
+        "guidance_scale":[9.0,9.0],
+        "query":torch.tensor([[1.0,1.0]]), 
+        "composition": ANDquery
+    }, 
+    {
+        "filepath": f"samples/{exp}/and_9_18",
+        "guidance_scale":[9.0,18.0],
+        "query":torch.tensor([[1.0,1.0]]), 
+        "composition": ANDquery
+    },
+    {
+        "filepath": f"samples/{exp}/and_9_27",
+        "guidance_scale":[9.0,27.0],
+        "query":torch.tensor([[1.0,1.0]]), 
+        "composition": ANDquery
 
+    },
+    {
+        "filepath": f"samples/{exp}/and_3_24",
+        "guidance_scale":[3.0,24.0],
+        "query":torch.tensor([[1.0,1.0]]), 
+        "composition": ANDquery
+    },
+    {
+        "filepath": f"samples/{exp}/exp16/cfg_9",
+        "guidance_scale":9.0,
+        "query":torch.tensor([[1.0,1.0]]), 
+        "composition": CFGquery
+    },
+    {
+        "filepath": f"samples/{exp}/neg_smile_9",
+        "guidance_scale":[9.0,-9.0],
+        "query":torch.tensor([[1.0,-1.0]]), 
+        "composition": ANDquery
+    },
+    {
+        "filepath": f"samples/{exp}/neg_gender_9",
+        "guidance_scale":[-9.0,9.0],
+        "query":torch.tensor([[-1.0,1.0]]), 
+        "composition": ANDquery
+    }
+    ]
+
+    for setting in settings_to_evaluate:
+        filepath = setting['filepath']
+        guidance_scale = setting['guidance_scale']
+        query = setting['query']
+        composition = setting['composition']
+        null_token = torch.zeros_like(query)
+        mp.spawn(generate_images, args=(world_size,args.checkpoint,num_images_per_gpu,filepath,composition,guidance_scale,query,null_token ), nprocs=world_size)    
+    dist.destroy_process_group()
 
 
     
