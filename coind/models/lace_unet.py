@@ -33,7 +33,7 @@ class ComposableUnet(nn.Module):
     def __init__(self,num_class_per_label,**kwargs):
         super().__init__()
         self.models = nn.ModuleList([AttributeSpecificModel(num_classes = num_classes,**kwargs) for num_classes in num_class_per_label])
-        self.num_class_per_label = num_class_per_label
+        self.num_classes_per_label = num_class_per_label
         
     def forward(self,x,t,y=None):
         """

@@ -3,11 +3,10 @@ defaults:
   - _self_
 
 model:
-  _target_: models.conditional_unet.ClassConditionalUnet
+  _target_: models.lace_unet.ComposableUnet
   num_class_per_label:
   - 10
   - 10
-  interaction: sum
   sample_size: 28
   in_channels: 3
   out_channels: 3

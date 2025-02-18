@@ -83,6 +83,7 @@ class JSD(Metric):
         self.num_of_timesteps = 5
         self.time_limit = (300,600)
         self.jsd = WeightedAverage()
+        self.count = 0
         self.guidance_accuracy = nn.ModuleList([WeightedAverage() for _ in range(2)])
     
     @torch.no_grad()
@@ -91,6 +92,7 @@ class JSD(Metric):
         jsd,accuracy = self.guidance_evaluator(batch,model,scheduler)
         for acc,acc_module in zip(accuracy,self.guidance_accuracy):
             acc_module.update(acc,count)
+        self.count += count
         self.jsd.update(jsd,count)
 
     def compute(self):
@@ -103,6 +105,7 @@ class JSD(Metric):
         self.jsd.reset()
         for acc in self.guidance_accuracy:
             acc.reset()
+        self.count = 0
     
     @torch.no_grad()
     def guidance_evaluator(self,batch,model,scheduler):
@@ -238,10 +241,7 @@ class Diversity(Metric):
         entropies = []
         for k,v in self.uncontrolled_diversity.items():
             total = sum(v.values())
-            for k1,v1 in v.items():
-                v[k1] = v1/total
-            #compute entropy
-            entropy = -sum([p*math.log(p) for p in v.values()])
+            entropy = -sum([(v/total)*math.log(v/total) for v in v.values()])
             entropies.append(entropy)
         return {
             'diversity': sum(entropies)/len(entropies)

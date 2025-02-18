@@ -13,7 +13,7 @@ except Exception:
 
 
 class ClassConditionalUnet(UNet2DModel):
-    def __init__(self,num_class_per_label,interaction='cat',**kwargs):
+    def __init__(self,num_class_per_label,interaction=None,**kwargs):
         super().__init__(**kwargs)
         self.class_embedding = None
         time_embed_dim = self.config.block_out_channels[0] * 4
@@ -21,6 +21,7 @@ class ClassConditionalUnet(UNet2DModel):
             self.class_embedding = MultiLabelEncoder(num_class_per_label = num_class_per_label,
                                                         interaction = interaction,
                                                         d_latent = time_embed_dim)
+                                                        
         else:
             self.class_embedding = TimestepEmbedding(
                 in_channels=len(num_class_per_label),

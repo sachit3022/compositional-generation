@@ -10,7 +10,8 @@ from hydra.utils import instantiate
 from tqdm import tqdm
 from utils import set_seed
 from metrics import JSD, CS, Diversity
-from score.pipelines import ANDquery,CFGquery, ModelWrapper, CondDDIMPipeline
+from score.pipelines import ANDquery,CFGquery, ModelWrapper, CondDDIMPipeline, LaceModelWrapper, LaceANDquery
+from models.lace_unet import ComposableUnet
 import csv
 
 if torch.cuda.is_available():
@@ -56,14 +57,26 @@ class ColorNotquery(ModelWrapper):
     def prepare_query(self,y,null_token,guidance_scale):
         return color_not_query(y,null_token,guidance_scale)
 
+
+class LaceDigitNotquery(LaceModelWrapper):
+    def prepare_query(self,y,null_token,guidance_scale):
+        return digit_not_query(y,null_token,guidance_scale)
+class LaceColorNotquery(LaceModelWrapper):
+    def prepare_query(self,y,null_token,guidance_scale):
+        return color_not_query(y,null_token,guidance_scale)
+
+
 def log_metrics(evaluation,jsd,diversity, prefix,epoch,output_dir):
     # format and log metrics into nice dict and save to csv
     csv_dict = {"epoch": epoch}
     for cs_name,cs_dict in evaluation.items():
         for metric_subname, metric in cs_dict["metric"].compute().items():
             csv_dict[f'{prefix}/{cs_name}/{metric_subname}'] = metric.item()
-    for metric_subname, metric in jsd.compute().items():
-        csv_dict[f'{prefix}/jsd/{metric_subname}'] = metric.item()
+    
+    if jsd.count > 0:
+        for metric_subname, metric in jsd.compute().items():
+            csv_dict[f'{prefix}/jsd/{metric_subname}'] = metric.item()
+    
     
     for i,div_metric in enumerate(diversity):
         for metric_subname, metric in div_metric["metric"].compute().items():
@@ -122,19 +135,33 @@ def main(cfg):
     classifier.load_state_dict(torch.load(cfg.classifer_checkpoint)["state_dict"])
 
     #evaluate for multiple queries
-    cs_evaluations = {"val":{
-                "and": {"sampler":CondDDIMPipeline(unet=ANDquery(model), scheduler=scheduler),"query":prepare_and_query,"metric":CS(classifier = classifier).to(device)},
-                "joint": {"sampler":CondDDIMPipeline(unet=CFGquery(model), scheduler=scheduler),"query":prepare_and_query,"metric":CS(classifier = classifier).to(device)},
-                "digit_not": {"sampler":CondDDIMPipeline(unet=DigitNotquery(model), scheduler=scheduler),"query":digit_not_query,"metric":CS(classifier = classifier).to(device)},
-                "color_not":{"sampler":CondDDIMPipeline(unet=ColorNotquery(model), scheduler=scheduler),"query":color_not_query,"metric":CS(classifier = classifier).to(device)}
+    if isinstance(model, ComposableUnet):
+        cs_evaluations = {"val":{
+                "and": {"sampler":CondDDIMPipeline(unet=LaceANDquery(model), scheduler=scheduler),"query":prepare_and_query,"metric":CS(classifier = classifier).to(device)},
+                "digit_not": {"sampler":CondDDIMPipeline(unet=LaceDigitNotquery(model), scheduler=scheduler),"query":digit_not_query,"metric":CS(classifier = classifier).to(device)},
+                "color_not":{"sampler":CondDDIMPipeline(unet=LaceColorNotquery(model), scheduler=scheduler),"query":color_not_query,"metric":CS(classifier = classifier).to(device)}
             },
             "train":{
-                "and": {"sampler":CondDDIMPipeline(unet=ANDquery(model), scheduler=scheduler),"query":prepare_and_query,"metric":CS(classifier = classifier).to(device)},
-                "joint": {"sampler":CondDDIMPipeline(unet=CFGquery(model), scheduler=scheduler),"query":prepare_and_query,"metric":CS(classifier = classifier).to(device)},
-            }
+                "and": {"sampler":CondDDIMPipeline(unet=LaceANDquery(model), scheduler=scheduler),"query":prepare_and_query,"metric":CS(classifier = classifier).to(device)},            }
     }
-
-    diversity = [ {"sampler":CondDDIMPipeline(unet=CFGquery(model), scheduler=scheduler),"metric":Diversity(classifier = classifier).to(device)},{"sampler":CondDDIMPipeline(unet=ANDquery(model), scheduler=scheduler),"metric":Diversity(classifier = classifier).to(device)}]
+    else:
+        cs_evaluations = {"val":{
+                    "and": {"sampler":CondDDIMPipeline(unet=ANDquery(model), scheduler=scheduler),"query":prepare_and_query,"metric":CS(classifier = classifier).to(device)},
+                    "joint": {"sampler":CondDDIMPipeline(unet=CFGquery(model), scheduler=scheduler),"query":prepare_and_query,"metric":CS(classifier = classifier).to(device)},
+                    "digit_not": {"sampler":CondDDIMPipeline(unet=DigitNotquery(model), scheduler=scheduler),"query":digit_not_query,"metric":CS(classifier = classifier).to(device)},
+                    "color_not":{"sampler":CondDDIMPipeline(unet=ColorNotquery(model), scheduler=scheduler),"query":color_not_query,"metric":CS(classifier = classifier).to(device)}
+                },
+                "train":{
+                    "and": {"sampler":CondDDIMPipeline(unet=ANDquery(model), scheduler=scheduler),"query":prepare_and_query,"metric":CS(classifier = classifier).to(device)},
+                    "joint": {"sampler":CondDDIMPipeline(unet=CFGquery(model), scheduler=scheduler),"query":prepare_and_query,"metric":CS(classifier = classifier).to(device)},
+                }
+        }
+    if not isinstance(model, ComposableUnet):
+        diversity = [ {"sampler":CondDDIMPipeline(unet=CFGquery(model), scheduler=scheduler),"metric":Diversity(classifier = classifier).to(device)},
+                        {"sampler":CondDDIMPipeline(unet=CFGquery(model), scheduler=scheduler),"metric":Diversity(classifier = classifier).to(device)}]
+    else:
+        diversity = [ {"sampler":CondDDIMPipeline(unet=LaceANDquery(model), scheduler=scheduler),"metric":Diversity(classifier = classifier).to(device)},
+                        {"sampler":CondDDIMPipeline(unet=LaceANDquery(model), scheduler=scheduler),"metric":Diversity(classifier = classifier).to(device)}]
 
     pipleline_kargs = {'num_inference_steps':num_inference_steps,
                         'return_dict':True,
@@ -147,7 +174,8 @@ def main(cfg):
         for epoch,batch in enumerate(pbar):
             x,y,null_token  = batch["X"].to(device), batch["label"].to(device), batch["label_null"].to(device)
             ########### JSD #############
-            jsd.update(batch, model,scheduler)
+            if not isinstance(model, ComposableUnet):
+                jsd.update(batch, model,scheduler)
             ########### CS #############
             for cs_name,cs_dict in evaluation.items():
                 generated_images = cs_dict["sampler"](batch_size= x.size(0),query = y,null_token=null_token,**pipleline_kargs)[0]
