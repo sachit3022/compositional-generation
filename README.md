@@ -58,8 +58,9 @@ python coind/cs_classifier/train.py --config-name=cs_cmnsit
 ### Diffusion in Latent Space
 For CelebA dataset, we perform diffusion on Latent space. To speed up the training process run generation on the latent space. ( we borrow this from fast-DiT ) 
 ```bash
-torchrun --master_port=25670 coind/scripts/save_latent.py --encoder=vae --dataset=celeba --data-path=/path/to/celeba/ --features-path=data/celeba
+CUDA_VISIBLE_DEVICES=0 torchrun --master_port=25670 coind/scripts/save_latent.py --encoder=vae --dataset=celeba --data-path=/path/to/celeba --features-path=data/celeba
 ```
+
 ### Train Diffusion model
 Modify the config of datasets( add /path/to/your/dataset) and callbacks CS(/path/to/your/checkpoint) or you can remove the callback. 
 Example script to run the training based on the dataset setup and the CoInD regularizer.
