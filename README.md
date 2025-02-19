@@ -30,9 +30,11 @@
   </tr>
 </table>
 
-
-
 Complete walk through of the CoInD along with theoritical derivation for 2d gaussian is avaiable at [notebooks/2d_gaussian_generation.ipynb](notebooks/2d_gaussian_generation.ipynb)
+
+<img src="assets/smile.gif" width="200"> <img src="assets/smile.gif" width="200"> <img src="assets/smile.gif" width="200"> <img src="assets/smile.gif" width="200">
+
+
 
 For large vision dataset we give a sofisticated code where you can train large model on multiple GPUs
 ### Installation
