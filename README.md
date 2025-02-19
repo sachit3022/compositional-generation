@@ -33,6 +33,11 @@
 Complete walk through of the CoInD along with theoritical derivation for 2d gaussian is avaiable at [notebooks/2d_gaussian_generation.ipynb](notebooks/2d_gaussian_generation.ipynb)
 
 <img src="assets/1_coind.gif" width="200"> <img src="assets/2_coind.gif" width="200"> <img src="assets/3_coind.gif" width="200"> <img src="assets/4_coind.gif" width="200">
+<img src="assets/1_lace.gif" width="200"> <img src="assets/2_lacegif" width="200"> <img src="assets/3_lace.gif" width="200"> <img src="assets/4_lace.gif" width="200">
+<img src="assets/1_vanilla.gif" width="200"> <img src="assets/2_vanilla.gif" width="200"> <img src="assets/3_vanilla.gif" width="200"> <img src="assets/4_vanilla.gif" width="200">
+
+
+
 
 
 
