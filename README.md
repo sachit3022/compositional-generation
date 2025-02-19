@@ -21,10 +21,8 @@ Complete walk through of the CoInD along with theoritical derivation for 2d gaus
 ### CoInD gives precise control over attributes smile, and gender.
 <table> <tr> <th style="width:100px; text-align:right; padding-right:10px;">CoInD</th> <td><img src="assets/1_coind.gif" width="200" align="top"></td> <td><img src="assets/2_coind.gif" width="200" align="top"></td> <td><img src="assets/3_coind.gif" width="200" align="top"></td> <td><img src="assets/4_coind.gif" width="200" align="top"></td> </tr> <tr> <th style="width:100px; text-align:right; padding-right:10px;">LACE</th> <td><img src="assets/1_lace.gif" width="200" align="top"></td> <td><img src="assets/2_lace.gif" width="200" align="top"></td> <td><img src="assets/3_lace.gif" width="200" align="top"></td> <td><img src="assets/4_lace.gif" width="200" align="top"></td> </tr> <tr> <th style="width:100px; text-align:right; padding-right:10px;">Composed GLIDE</th> <td><img src="assets/1_vanilla.gif" width="200" align="top"></td> <td><img src="assets/2_vanilla.gif" width="200" align="top"></td> <td><img src="assets/3_vanilla.gif" width="200" align="top"></td> <td><img src="assets/4_vanilla.gif" width="200" align="top"></td> </tr> </table>
 
-
-
-
-For large vision dataset we give a sofisticated code where you can train large model on multiple GPUs
+For large vision dataset we give a sofisticated code where you can train large model on multiple GPUs. 
+This repository is built on very cool, config management system called Hydra. Training from pytorch lightning, and model architectures from huggingface.
 ### Installation
 ```bash
 git clone https://github.com/sachit3022/compositional-generation.git
@@ -36,7 +34,7 @@ conda activate compositional-generation
 - ColoredMNIST, Shapes3D will be automatically downloaded when you first call the training
 - CelebA: Please refer to CelebA instructions to download the datasets.
 
-This repository is built on very cool, config management system called Hydra. Add the download location to the respective file in configs/datasets/*.yaml
+Add the download location to the respective file in configs/datasets/*.yaml
 
 ## Training
 
@@ -86,13 +84,16 @@ Coming soon .....
 
 Coming soon ..... 
 
+### We borrow code from multiple resources, attribution is given in the code.
+Special mention to Mushrur, huggingface, hydra, pytorch lightning, lucidrains.
+
+
 ### Utilty of CoInD
 ICLRW Synthetic data workshop: Compositional World Knowledge leads to High Utility Synthetic data
 To run the code follow the process above, the only change will be in the evaluation on Compositional Generalization task
 ```bash
 python /coind/evaluate/evaluate_synthetic_data.py --sythetic_data_path=/path/to/synthetic_data --sythetic_data_path=/path/to/originaldata --train_on=synthetic 
-```
-
+``
 ### Citation
 
 If you find our work useful in your research, please consider starring the repo and citing:
