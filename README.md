@@ -18,7 +18,7 @@
 
 Complete walk through of the CoInD along with theoritical derivation for 2d gaussian is avaiable at [notebooks/2d_gaussian_generation.ipynb](notebooks/2d_gaussian_generation.ipynb)
 
-### CoInD gives precise control over attributes smile, and gender.
+### CoInD generates unseen compositions with precise control over attributes smile, and gender.
 <table> <tr> <th style="width:100px; text-align:right; padding-right:10px;">CoInD</th> <td><img src="assets/1_coind.gif" width="200" align="top"></td> <td><img src="assets/2_coind.gif" width="200" align="top"></td> <td><img src="assets/3_coind.gif" width="200" align="top"></td> <td><img src="assets/4_coind.gif" width="200" align="top"></td> </tr> <tr> <th style="width:100px; text-align:right; padding-right:10px;">LACE</th> <td><img src="assets/1_lace.gif" width="200" align="top"></td> <td><img src="assets/2_lace.gif" width="200" align="top"></td> <td><img src="assets/3_lace.gif" width="200" align="top"></td> <td><img src="assets/4_lace.gif" width="200" align="top"></td> </tr> <tr> <th style="width:100px; text-align:right; padding-right:10px;">Composed GLIDE</th> <td><img src="assets/1_vanilla.gif" width="200" align="top"></td> <td><img src="assets/2_vanilla.gif" width="200" align="top"></td> <td><img src="assets/3_vanilla.gif" width="200" align="top"></td> <td><img src="assets/4_vanilla.gif" width="200" align="top"></td> </tr> </table>
 
 For large vision dataset we give a sofisticated code where you can train large model on multiple GPUs. 
@@ -46,7 +46,7 @@ python coind/cs_classifier/train.py --config-name=cs_cmnsit
 ### Diffusion in Latent Space
 For CelebA dataset, we perform diffusion on Latent space. To speed up the training process run generation on the latent space. ( we borrow this from fast-DiT ) 
 ```bash
-CUDA_VISIBLE_DEVICES=0 torchrun --master_port=25670 coind/scripts/save_latent.py --encoder=vae --dataset=celeba --data-path=/path/to/celeba --features-path=data/celeba
+CUDA_VISIBLE_DEVICES=0 torchrun --master_port=25670 coind/scripts/save_latent.py --encoder=vae --image-size=128 --dataset=celeba --data-path=/path/to/celeba --features-path=data/celeba
 ```
 
 ### Train Diffusion model
@@ -58,7 +58,15 @@ python coind/train.py --config-name=cmnist dataset=cmnist_partial diffusion.lamb
 This will create a folder called outputs/ and you can monitor the training via tensorboard or CSV generated in the output folder.
 
 ### Inference
-Once trained upload the checkpoint to checkpoints repository or download our checkpoints and place them in the checkpoints repository.
+For Cmnist, CelebA datasets Once trained is completed, evaltion code is provided in the evaluate/ folder to find all the evaluation scripts. 
+For CelebA first you have call the generate samples, which would generate samples, To evaluate CS and FID, refer to evaluate script in the evaluate/
+If you donot want to train, we provide all the results along with te checkpoint in the follwing spreadsheet. You can download the checkpoint and evaluate.
+
+ <a href="https://docs.google.com/spreadsheets/d/1lHcqRJTo6JgRHh_PwHbt3MIp-PmSKPnqU4wTS9YXB8M/edit?usp=sharing">https://docs.google.com/spreadsheets/d/1lHcqRJTo6JgRHh_PwHbt3MIp-PmSKPnqU4wTS9YXB8M/edit?usp=sharing</a> </p> </div>
+
+For celeba, you can explore the precise control by downloading the checkpoints from the above google sheets, and run  [notebooks/celeba_control_smile.ipynb](notebooks/celeba_control_smile.ipynb)
+
+
 
 #### Evaluation
 Detail description of the metrics is provided in the paper.
@@ -67,12 +75,15 @@ Detail description of the metrics is provided in the paper.
 - R2 Score
 - Diversity
 - FID
+- Qualitative evaluations
 
-#### Generate 
-To have the guide to custom logical queries and fine grained control refer to our notbook.
-### Custom dataset
+
+### Custom Datatset, logic, constraints
+
 To train on custom dataset follow our guide
 #write a train_dataset and place it in the datasets/ folder
+
+Checkout score/sampling.py file it is built on 
 
 
 
@@ -93,7 +104,8 @@ ICLRW Synthetic data workshop: Compositional World Knowledge leads to High Utili
 To run the code follow the process above, the only change will be in the evaluation on Compositional Generalization task
 ```bash
 python /coind/evaluate/evaluate_synthetic_data.py --sythetic_data_path=/path/to/synthetic_data --sythetic_data_path=/path/to/originaldata --train_on=synthetic 
-``
+```
+
 ### Citation
 
 If you find our work useful in your research, please consider starring the repo and citing:
