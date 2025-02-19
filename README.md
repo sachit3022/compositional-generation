@@ -32,10 +32,7 @@
 
 Complete walk through of the CoInD along with theoritical derivation for 2d gaussian is avaiable at [notebooks/2d_gaussian_generation.ipynb](notebooks/2d_gaussian_generation.ipynb)
 
-<img src="assets/1_coind.gif" width="200"> <img src="assets/2_coind.gif" width="200"> <img src="assets/3_coind.gif" width="200"> <img src="assets/4_coind.gif" width="200">
-<img src="assets/1_lace.gif" width="200"> <img src="assets/2_lacegif" width="200"> <img src="assets/3_lace.gif" width="200"> <img src="assets/4_lace.gif" width="200">
-<img src="assets/1_vanilla.gif" width="200"> <img src="assets/2_vanilla.gif" width="200"> <img src="assets/3_vanilla.gif" width="200"> <img src="assets/4_vanilla.gif" width="200">
-
+<table> <tr> <th colspan="4"><h3 align="center">COIND</h3></th> </tr> <tr> <td><img src="assets/1_coind.gif" width="200" align="top"></td> <td><img src="assets/2_coind.gif" width="200" align="top"></td> <td><img src="assets/3_coind.gif" width="200" align="top"></td> <td><img src="assets/4_coind.gif" width="200" align="top"></td> </tr> <tr> <th colspan="4"><h3 align="center">LACE</h3></th> </tr> <tr> <td><img src="assets/1_lace.gif" width="200" align="top"></td> <td><img src="assets/2_lace.gif" width="200" align="top"></td> <td><img src="assets/3_lace.gif" width="200" align="top"></td> <td><img src="assets/4_lace.gif" width="200" align="top"></td> </tr> <tr> <th colspan="4"><h3 align="center">Vanilla</h3></th> </tr> <tr> <td><img src="assets/1_vanilla.gif" width="200" align="top"></td> <td><img src="assets/2_vanilla.gif" width="200" align="top"></td> <td><img src="assets/3_vanilla.gif" width="200" align="top"></td> <td><img src="assets/4_vanilla.gif" width="200" align="top"></td> </tr> </table>
 
 
 
