@@ -1,5 +1,5 @@
 defaults:
-  - /dataset: celeba_pixel.yaml
+  - /dataset: celeba_pixel_gender_smile.yaml
   - _self_
 
 seed: 42

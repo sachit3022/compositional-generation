@@ -82,7 +82,6 @@ class CelebADataset(Dataset):
     def __getitem__(self, idx):
         img_name = os.path.join(f"{self.root}/{self.base_folder}/{self.img_dir}", self.filename[idx])
         image = Image.open(img_name)
-        
         if self.transform:
             image = self.transform(image)
         
@@ -91,6 +90,9 @@ class CelebADataset(Dataset):
             attrs = self.target_transform(attrs)
 
         return {"X": image, "label": attrs, "idx": int(self.filename[idx].split(".")[0])}
+
+
+
 
 class BlondFemaleDataset(CelebADataset):
     def filter_data(self,split):
@@ -102,6 +104,7 @@ class BlondFemaleDataset(CelebADataset):
         elif split == 'val':
             mask = mask & torch.logical_and(self.attributes_csv.data[:,9] == 1, self.attributes_csv.data[:,20] == -1)
         return mask
+
 
 class AttrCelebALatent(CelebADataset):
     def __init__(self, celeba_dir,latent_dir,split='train'):
@@ -167,3 +170,38 @@ class BlondMale(AttrCelebALatent):
         split_ = partition_map[split]
         mask = slice(None) if split_ is None else (self.splits_csv.data == split_).squeeze()
         return mask 
+
+
+class MaleSmileLatent(CelebADataset):
+    def __init__(self, celeba_dir,latent_dir,split='train'):
+        self.root = celeba_dir
+        self.base_folder = 'celeba'
+        self.img_dir = 'img_align_celeba'
+        attr_file = 'list_attr_celeba.txt'
+        partition_file = 'list_eval_partition.txt'
+        # Load attributes and partitions using the _load_csv method
+        self.attributes_csv = self._load_csv(attr_file, header=1)
+        self.splits_csv = self._load_csv(partition_file)
+        # Filter images based on the split
+        mask = self.filter_data(split)
+        self.filename = [self.splits_csv.index[i] for i in torch.squeeze(torch.nonzero(mask))]
+        self.attributes = self.attributes_csv.data[mask]
+        self.attr_names = self.attributes_csv.header
+        self.latent_dir = latent_dir
+
+    def filter_data(self,split):
+        partition_map = {'train': 0, 'val': 1, 'test': 2}  
+        split_ = partition_map[split]
+        mask = slice(None) if split_ is None else (self.splits_csv.data == split_).squeeze()
+        if split == 'train':
+           mask = mask & torch.logical_not(torch.logical_and(self.attributes_csv.data[:,20] == 1, self.attributes_csv.data[:,31] == 1))
+        elif split == 'val':
+            mask = mask & torch.logical_and(self.attributes_csv.data[:,20] == 1, self.attributes_csv.data[:,31] == 1)
+        return mask 
+    def __getitem__(self, index):
+        self.images = np.load(self.latent_dir+"/{:06d}.npy".format(int(self.filename[index].split(".")[0])))
+        self.labels = self.attributes[index]
+        labels = self.labels[[20,31]]*1.0
+        return {"X":torch.tensor(self.images), "label":labels, 'label_null': torch.ones_like(labels)*0.0}
+    def __len__(self):
+        return len(self.attributes)

@@ -1,7 +1,7 @@
 from diffusers.models.embeddings import TimestepEmbedding
 from diffusers import UNet2DModel
 from torch import nn
-from typing import Tuple, Literal
+from typing import Tuple, Literal, List
 import torch
 from collections import OrderedDict
 
@@ -70,7 +70,7 @@ class ComposeModels(nn.Module):
         #split along the batch dimension
         y = torch.split(y,1,dim=1)
         #concatinate along batch dimension
-        y = torch.cat([model(x,t,y_.view(-1)).unsqueeze(dim=1) for model,y_ in zip(self.models,y)],dim=1)
+        y = torch.cat([model(x,t,y_).unsqueeze(dim=1) for model,y_ in zip(self.models,y)],dim=1)
         return y
     @property
     def device(self):

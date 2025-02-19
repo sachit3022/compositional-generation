@@ -95,7 +95,7 @@ def main(args):
             os.makedirs(os.path.join(args.features_path, f"{args.encoder}_{split}_features"), exist_ok=True)
 
     if args.encoder == "vae":
-        encoder = AutoencoderKL.from_pretrained(f"stabilityai/stable-diffusion-3-medium-diffusers",cache_dir='checkpoints',subfolder='vae').to(device)
+        encoder = AutoencoderKL.from_pretrained(f"black-forest-labs/FLUX.1-schnell",cache_dir='checkpoints',subfolder='vae').to(device)
     elif args.encoder == "clip":
         encoder = CLIPModel.from_pretrained("openai/clip-vit-large-patch14",cache_dir='checkpoints',device_map = device)
     

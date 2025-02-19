@@ -9,8 +9,9 @@ import hydra
 from diffusers import DDPMScheduler,AutoencoderKL
 
 from models.conditional_unet import ClassConditionalUnet
+from models.lace_unet import ComposeModels
 from score.pipelines import CondDDIMPipeline
-from score.sampling import ANDquery,CFGquery, LaceANDquery,LaceCFGquery
+from score.sampling import ANDquery,CFGquery, LaceANDquery
 from utils import set_seed
 from argparse import ArgumentParser
 
@@ -24,6 +25,7 @@ from filelock import FileLock
 
 import os
 import numpy as np
+from copy import deepcopy
 
 
 os.environ['MASTER_ADDR'] = 'localhost'
@@ -58,16 +60,41 @@ def setup(rank, world_size):
 
 def get_image_generation_pipeline(checkpoint_path,rank,composition):
 
-    model_config = {
-        '_target_': ClassConditionalUnet,
-        'num_class_per_label': [2,2],
-        'sample_size': 16,
-        'in_channels': 16,
-        'out_channels': 16, 
-        'center_input_sample': False,
-        'time_embedding_type': 'positional',
-    }
-
+    if isinstance(checkpoint_path, list):
+        model_config = {
+            '_target_': ClassConditionalUnet,
+            'num_class_per_label': [2],
+            'sample_size': 16,
+            'in_channels': 16,
+            'out_channels': 16, 
+            'center_input_sample': False,
+            'time_embedding_type': 'positional'
+        }
+        models =[]
+        model = hydra.utils.instantiate(model_config)
+        for path in checkpoint_path:
+            i_model = deepcopy(model)
+            model_state_dict = {k.replace('model.',''): v for k, v in torch.load(path,weights_only=False,map_location=f"cuda:{rank}")['state_dict'].items() if k.startswith('model.')}
+            i_model.load_state_dict(model_state_dict, strict=False)
+            models.append(i_model)
+        model = ComposeModels(models)
+    else:
+        model_config = {
+            '_target_': ClassConditionalUnet,
+            'num_class_per_label': [2,2],
+            'sample_size': 16,
+            'in_channels': 16,
+            'out_channels': 16, 
+            'center_input_sample': False,
+            'time_embedding_type': 'positional'
+        }
+        model = hydra.utils.instantiate(model_config)
+        model_state_dict = {k.replace('model.',''): v for k, v in torch.load(checkpoint_path,weights_only=False,map_location=f"cuda:{rank}")['state_dict'].items() if k.startswith('model.')}
+        model.load_state_dict(model_state_dict, strict=False)
+    
+    model.to(f"cuda:{rank}")
+    model.eval()
+    
     scheduler_config = {
         '_target_': DDPMScheduler,
         'num_train_timesteps': 1000,
@@ -75,15 +102,9 @@ def get_image_generation_pipeline(checkpoint_path,rank,composition):
         "prediction_type": "epsilon",
         'beta_schedule': 'squaredcos_cap_v2',
     }
-
-    model = hydra.utils.instantiate(model_config)
     scheduler = hydra.utils.instantiate(scheduler_config)
 
-    #load model
-    model_state_dict = {k.replace('model.',''): v for k, v in torch.load(checkpoint_path,weights_only=False,map_location=f"cuda:{rank}")['state_dict'].items() if k.startswith('model.')}
-    model.load_state_dict(model_state_dict, strict=False)
-    model.to(f"cuda:{rank}")
-    model.eval()
+
 
 
     vae = AutoencoderKL.from_pretrained('black-forest-labs/FLUX.1-schnell', subfolder='vae', cache_dir='checkpoints', device_map=rank)
@@ -119,17 +140,21 @@ if __name__ == '__main__':
     make this to run on distributed process to run accross multiple gpus.
     """
     checkpoints = {
-        "vanilla":"/research/hal-gaudisac/Diffusion/compositional-generation/checkpoints/celeba/celeba_partial_diffusion.ckpt",
-        "coind":'/research/hal-gaudisac/Diffusion/compositional-generation/checkpoints/celeba/celeba_partial_coind.ckpt',
+        "vanilla": "/research/hal-gaudisac/Diffusion/compositional-generation/checkpoints/celeba/celeba_partial_diffusion.ckpt",
+        "coind": "/research/hal-gaudisac/Diffusion/compositional-generation/checkpoints/celeba/celeba_partial_coind.ckpt",
+        "lace":[
+            "/research/hal-gaudisac/Diffusion/compositional-generation/checkpoints/celeba/celeba_partial_lace_gender.ckpt",
+            "/research/hal-gaudisac/Diffusion/compositional-generation/checkpoints/celeba/celeba_partial_lace_smile.ckpt"
+        ]
     }
     args = ArgumentParser()
     args.add_argument('--num_of_images',type=int,default=10_000)
-    args.add_argument('--checkpoint',type=str,default=checkpoints['coind'])
+    args.add_argument('--checkpoint',type=str,default=checkpoints['lace'])
     args = args.parse_args()
     
     world_size = torch.cuda.device_count()
     num_images_per_gpu = args.num_of_images // world_size
-    exp = "coind_gender_smile" 
+    exp = "lace_gender_smile" 
 
     settings_to_evaluate = [
     {
@@ -158,12 +183,6 @@ if __name__ == '__main__':
         "composition": ANDquery
     },
     {
-        "filepath": f"samples/{exp}/exp16/cfg_9",
-        "guidance_scale":9.0,
-        "query":torch.tensor([[1.0,1.0]]), 
-        "composition": CFGquery
-    },
-    {
         "filepath": f"samples/{exp}/neg_smile_9",
         "guidance_scale":[9.0,-9.0],
         "query":torch.tensor([[1.0,-1.0]]), 
@@ -176,6 +195,19 @@ if __name__ == '__main__':
         "composition": ANDquery
     }
     ]
+    
+    if not isinstance(args.checkpoint, list):
+        settings_to_evaluate += [
+            {
+                "filepath": f"samples/{exp}/cfg_9",
+                "guidance_scale":9.0,
+                "query":torch.tensor([[1.0,1.0]]), 
+                "composition": CFGquery
+            }
+        ]
+    else:
+        for i in range(len(settings_to_evaluate)):
+            settings_to_evaluate[i]['composition'] = LaceANDquery
 
     for setting in settings_to_evaluate:
         filepath = setting['filepath']
@@ -184,6 +216,7 @@ if __name__ == '__main__':
         composition = setting['composition']
         null_token = torch.zeros_like(query)
         mp.spawn(generate_images, args=(world_size,args.checkpoint,num_images_per_gpu,filepath,composition,guidance_scale,query,null_token ), nprocs=world_size)    
+    
     dist.destroy_process_group()
 
 

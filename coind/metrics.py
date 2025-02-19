@@ -120,6 +120,7 @@ class JSD(Metric):
 
         x_og,y_og,y_null = batch["X"].to(model.device), batch["label"].to(model.device), batch["label_null"].to(model.device)
         all_possible_joint_labels = torch.tensor(list(itertools.product(range( self.c_1_num_classes),range(self.c_2_num_classes))),device=device,dtype=torch.long)
+        
         y_all  = y_null[:1].repeat(c_1*c_2+c_1+c_2,1).to(dtype=all_possible_joint_labels.dtype,device=device)
         y_all[:c_1*c_2,c_1_index] = all_possible_joint_labels[:,0]
         y_all[:c_1*c_2,c_2_index] = all_possible_joint_labels[:,1]
