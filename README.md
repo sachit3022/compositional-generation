@@ -89,7 +89,11 @@ Checkout score/sampling.py file it is built on
 
 ### Scripts for finetuning Stable Diffusion with CoInD
 
-Coming soon ..... 
+| CoInD | ![Image](assets/sd_results/male_smile_1_coind.jpg) | ![Image](assets/sd_results/male_smile_2_coind.jpg) | ![Image](assets/sd_results/male_smile_3_coind.jpg) |
+|-------|----------------------------|----------------------------|----------------------------|
+| Composed GLIDE | ![Image](assets/sd_results/male_smile_1_vanilla.jpg) | ![Image](assets/sd_results/male_smile_2_vanilla.jpg) | ![Image](assets/sd_results/male_smile_3_vanilla.jpg) |
+
+Code for finetuning scripts is available in sd_finetune_coind/ Most of it is borrowed from the huggingface finetuning scripts.
 
 ### CoInD 🤝 🤗
 
