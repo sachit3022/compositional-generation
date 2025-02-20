@@ -1,8 +1,7 @@
-export MODEL_NAME="stabilityai/stable-diffusion-2-1"
+export MODEL_NAME="runwayml/stable-diffusion-v1-5"
 export DATASET_DIR="/research/hal-datastore/datasets/original/celeba/"
 export DATASET_NAME="celeba"
 export CACHE_DIR="/research/hal-gaudisac/Diffusion/CoInD-celeba/cache/"
-export WANDB_API_KEY="387145b52b270dcf6fd277428c07a8cee4760438"
 export OUTPUT_DIR="/research/hal-gaudisac/Diffusion/CoInD-celeba/outputs/celeba_sd15_coind"
 
 CUDA_VISIBLE_DEVICES=2,3 /research/hal-gaudisac/miniconda3/bin/accelerate launch --mixed_precision="fp16" --multi_gpu --main_process_port 29502 train_text_to_image_coind.py \
