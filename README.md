@@ -62,6 +62,15 @@ For Cmnist, CelebA datasets Once trained is completed, evaltion code is provided
 For CelebA first you have call the generate samples, which would generate samples, To evaluate CS and FID, refer to evaluate script in the evaluate/
 If you donot want to train, we provide all the results along with te checkpoint in the follwing spreadsheet. You can download the checkpoint and evaluate.
 
+#### Evaluation
+Detail description of the metrics is provided in the paper.
+- JSD
+- Confirmity Score
+- R2 Score
+- Diversity
+- FID
+- Qualitative evaluations
+
 <table>
   <tr>
     <th>Support</th>
@@ -252,15 +261,6 @@ Similarly, for the other datasets please refer to <a href="https://docs.google.c
 For celeba, you can explore the precise control by downloading the checkpoints from the above google sheets, and run  [notebooks/celeba_control_smile.ipynb](notebooks/celeba_control_smile.ipynb)
 
 
-
-#### Evaluation
-Detail description of the metrics is provided in the paper.
-- JSD
-- Confirmity Score
-- R2 Score
-- Diversity
-- FID
-- Qualitative evaluations
 
 
 ### Custom Datatset, logic, constraints
