@@ -11,6 +11,7 @@ model:
   attention_head_dim:  8
   class_embed_type: null
   norm_num_groups: 8
+  dropout: 0.1
   act_fn: gelu
   down_block_types:
     - DownBlock2D
@@ -29,7 +30,8 @@ noise_scheduler:
 optimizer:
   _target_: torch.optim.AdamW
   _partial_: true
-  lr: 1.0e-4
+  lr: 1.0e-3
+  weight_decay: 1.0e-5
 scheduler:
   _target_: diffusers.optimization.get_cosine_schedule_with_warmup
   _partial_: true

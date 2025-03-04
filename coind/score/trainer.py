@@ -26,7 +26,8 @@ class ComposableDiffusion(pl.LightningModule):
                 param.requires_grad = False
 
         self.coind_loss_type = kwargs.get('coind_loss_type',None) #regular or theoritical
-        self.coind_masking = kwargs.get('coind_masking','pairwise') #pairwise or one''
+        self.coind_masking = kwargs.get('coind_masking','pairwise') #pairwise or one
+        self.p_null_mask = kwargs.get("p_null_mask",0.2) #ideal 0.2,0.3 any one is fine
     
     def prepare_labels(self,y,y_null):
         """
@@ -36,7 +37,7 @@ class ComposableDiffusion(pl.LightningModule):
             y_diffusion_obj: [x% of batch with y and 1-x% of y_null] or [x% of (batch_size, num_cols) with y[i] and 1-x% of y_null[i]]
             y_coind_obj: [y,y_null,y_i,y_-i]
         """
-        p_null = 0.2
+        p_null = self.p_null_mask
         masking = 'sample' #'batch' or 'sample' or 'none'
         #, 'random'( 0.1 )', 'one vs all'
 
@@ -56,7 +57,7 @@ class ComposableDiffusion(pl.LightningModule):
         x_idx = torch.arange(batch_size*4)
         y_null = y_null.repeat(4,1)
         y_coind_obj = y.clone().repeat(4,1)
-        if self.coind_masking == 'pairwise':    
+        if self.coind_masking == 'pairwise':  #for two variables pairwise = one 
             y_coind_obj[x_idx[:batch_size],y_idx[:batch_size,0]] = y_null[x_idx[:batch_size],y_idx[:batch_size,0]]
             y_coind_obj[x_idx[batch_size:batch_size*3],:] = y_null[x_idx[:batch_size*2],:]
             y_coind_obj[x_idx[batch_size:batch_size*2],y_idx[:batch_size,0]] = y[x_idx[:batch_size],y_idx[:batch_size,0]]

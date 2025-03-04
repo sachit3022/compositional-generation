@@ -46,5 +46,6 @@ trainer:
   accelerator: gpu
   gradient_clip_val: 1.0
   enable_checkpointing: true
+  precision: 16-mixed
 
 

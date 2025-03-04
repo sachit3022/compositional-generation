@@ -10,9 +10,10 @@ from hydra.utils import instantiate
 from tqdm import tqdm
 from utils import set_seed
 from metrics import JSD, CS, Diversity
-from score.pipelines import  CondDDIMPipeline, 
+from score.pipelines import  CondDDIMPipeline
 from score.sampling import ANDquery,CFGquery, ModelWrapper,LaceModelWrapper, LaceANDquery
 from models.lace_unet import ComposableUnet
+import torchvision
 import csv
 
 if torch.cuda.is_available():
@@ -35,7 +36,7 @@ def digit_not_query(y,null_token,guidance_scale):
     query[:,0,1] = y[:,1]
     query[:,1,0] = y[:,1]
     query[:,2,0] = torch.clamp(y[:,1]-1, min=0, max=9)
-    guidance_scale = guidance_scale*3
+    guidance_scale = guidance_scale#*3 #multiplication only for partial
     guidance_scale = torch.tensor([2*guidance_scale,-1*guidance_scale,-1*guidance_scale]).to(query.device)
     return query,guidance_scale
 
@@ -47,7 +48,7 @@ def color_not_query(y,null_token,guidance_scale):
     query[:,0,0] = y[:,0]
     query[:,1,1] = y[:,0]
     query[:,2,1] = torch.clamp(y[:,0]+1, min=0, max=9)
-    guidance_scale = guidance_scale*2
+    guidance_scale = guidance_scale#*2 #multiplication only for partial
     guidance_scale = torch.tensor([2*guidance_scale,-1*guidance_scale,-1*guidance_scale]).to(query.device)
     return query,guidance_scale
 
@@ -71,8 +72,9 @@ def log_metrics(evaluation,jsd,diversity, prefix,epoch,output_dir):
     # format and log metrics into nice dict and save to csv
     csv_dict = {"epoch": epoch}
     for cs_name,cs_dict in evaluation.items():
-        for metric_subname, metric in cs_dict["metric"].compute().items():
-            csv_dict[f'{prefix}/{cs_name}/{metric_subname}'] = metric.item()
+        if cs_dict["metric"].count > 0:
+            for metric_subname, metric in cs_dict["metric"].compute().items():
+                csv_dict[f'{prefix}/{cs_name}/{metric_subname}'] = metric.item()
     
     if jsd.count > 0:
         for metric_subname, metric in jsd.compute().items():
@@ -104,6 +106,7 @@ def reset_metrics(evaluation,jsd,diversity):
 
 @hydra.main(config_path='../../configs',version_base='1.2',config_name='cmnist_inference')
 def main(cfg):
+
     
     ########## Hyperparameters and settings ##########
     set_seed(cfg.seed)
@@ -129,7 +132,11 @@ def main(cfg):
     # ########## Metrics #############
     ### hyperparameters ##
     num_inference_steps = 100
-    guidance = 7.5
+    if 'partial' in checkpoint_path:
+        guidance = 18.0
+    else:
+        guidance = 3.5
+
     max_samples = 10_000
 
     classifier = instantiate(cfg.classifier)
@@ -168,26 +175,38 @@ def main(cfg):
                         'return_dict':True,
                         'use_clipped_model_output':True,
                         'guidance_scale':guidance}
+    
+
+    
 
     for pbar in [ tqdm(val_dataloader, desc="val"),tqdm(train_dataloader, desc="train")]:
         evaluation = cs_evaluations[pbar.desc]
         jsd = JSD(model.num_classes_per_label).to(model.device)
         for epoch,batch in enumerate(pbar):
             x,y,null_token  = batch["X"].to(device), batch["label"].to(device), batch["label_null"].to(device)
-            ########### JSD #############
-            if not isinstance(model, ComposableUnet):
-                jsd.update(batch, model,scheduler)
+            # ########### JSD #############
+            # if not isinstance(model, ComposableUnet):
+            #     jsd.update(batch, model,scheduler)
             ########### CS #############
-            for cs_name,cs_dict in evaluation.items():
-                generated_images = cs_dict["sampler"](batch_size= x.size(0),query = y,null_token=null_token,**pipleline_kargs)[0]
-                query,guidance_scale = cs_dict["query"](y,null_token,guidance)
-                cs_dict["metric"].update(generated_images,query,null_token,guidance_scale)
+            # for cs_name,cs_dict in evaluation.items():
+            #     generated_images = cs_dict["sampler"](batch_size= x.size(0),query = y,null_token=null_token,**pipleline_kargs)[0]
+            #     query,guidance_scale = cs_dict["query"](y,null_token,guidance)
+            #     cs_dict["metric"].update(generated_images,query,null_token,guidance_scale)
             ######### Diversity ##########
             if pbar.desc == "val":
                 for i in range(2):
                     query = y.clone()
-                    query[:,i] = null_token[:,i]
+
+                    
+                    query[:,0] = 4
+                    query[:,1] = 10
+
+                    #query[:,i] = null_token[:,i]
                     generated_images = diversity[i]['sampler'](batch_size= x.size(0),query = query,null_token=null_token,**pipleline_kargs)[0]
+                    #save generated images
+                    for j in range(generated_images.size(0)):
+                        torchvision.utils.save_image(generated_images[j],os.path.join(output_dir,f"val_{i}_{j}.png"))
+
                     diversity[i]['metric'].update(generated_images,query,null_token)
             else:
                 diversity = []
@@ -198,4 +217,7 @@ def main(cfg):
         reset_metrics(evaluation,jsd,diversity)
 
 if __name__ == "__main__":
+    """
+    CUDA_VISIBLE_DEVICES=1 python coind/evaluate/evaluate_cmnist.py --config-name=cmnist_inference dataset=cmnist_partial checkpoint_path="checkpoints/cmnist/cmnist_partial_coind_1.ckpt"
+    """
     main()

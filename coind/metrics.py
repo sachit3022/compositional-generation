@@ -34,6 +34,7 @@ class CS(Metric):
         self.classifier.eval()
         self.accuracy_fn =nn.ModuleList([WeightedAverage() for _ in range(len(classifier.num_classes_per_label))])
         self.total_acc =  WeightedAverage()
+        self.count = 0
 
     @torch.no_grad()
     def update(self,generated_images,queries,y_null,guidance_scale):
@@ -45,6 +46,7 @@ class CS(Metric):
         equal = torch.where(queries == y_null, torch.tensor(True), equal) #dont consider the null token
         equal = equal.all(dim=1)
         self.total_acc.update(equal.all(dim=1).float().mean(),generated_images.size(0))
+        self.count += generated_images.size(0)
         equal = equal.float().mean(dim=0)
         for i,acc in enumerate(self.accuracy_fn):
             acc.update(equal[i],generated_images.size(0))
@@ -55,6 +57,12 @@ class CS(Metric):
         for i,acc in enumerate(self.accuracy_fn):
             return_dict[f"accuracy_{i}"] = acc.compute()
         return return_dict
+    
+    def reset(self):
+        self.total_acc.reset()
+        self.count = 0
+        for acc in self.accuracy_fn:
+            acc.reset()
   
 
 class R2(Metric):
@@ -242,8 +250,9 @@ class Diversity(Metric):
         entropies = []
         for k,v in self.uncontrolled_diversity.items():
             total = sum(v.values())
-            entropy = -sum([(v/total)*math.log(v/total) for v in v.values()])
+            entropy = -sum([(v/total)*math.log(v/total,2) for v in v.values()])
             entropies.append(entropy)
+        
         return {
             'diversity': sum(entropies)/len(entropies)
         }

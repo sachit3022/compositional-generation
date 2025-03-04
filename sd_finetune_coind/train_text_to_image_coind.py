@@ -54,8 +54,7 @@ from diffusers.utils.torch_utils import is_compiled_module
 # load celeba dataset
 from torchvision import transforms
 from datasets import Dataset
-from celeba import CelebaDataset
-from waterbirds import CUBDataset
+from celeba_text import CelebaDataset
 if is_wandb_available():
     import wandb
 

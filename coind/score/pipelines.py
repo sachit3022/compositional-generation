@@ -71,7 +71,6 @@ class CondDDIMPipeline(DDIMPipeline):
         self.scheduler.set_timesteps(num_inference_steps)
         if query is not None:
             image = image.to(device=query.device)
-
         for t in self.progress_bar(self.scheduler.timesteps):
             
             # 2. predict previous mean of image x_t-1 and add variance depending on eta

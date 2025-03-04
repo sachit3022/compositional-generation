@@ -13,6 +13,9 @@ from metrics import JSD, CS, Diversity
 from score.pipelines import CondDDIMPipeline
 from score.sampling import ANDquery,CFGquery, ModelWrapper
 import csv
+import matplotlib.pyplot as plt
+from torch.cuda.amp import autocast
+
 
 if torch.cuda.is_available():
     device = torch.device('cuda')
@@ -33,6 +36,7 @@ def shapes3d_not_query(y,null_token,guidance_scale):
     for i in [0,1,2,3]:
         query[:,i,i] = y[:,i]
     query[:,4,4] = y[:,5]
+    breakpoint()
     #negate the on 4th index
     query[y[:,4] == 0,[5,6,7],4] = torch.tensor([1,2,3],dtype=y.dtype,device=y.device)
     query[y[:,4] == 1,[5,6,7],4] = torch.tensor([0,2,3],dtype=y.dtype,device=y.device)
@@ -56,8 +60,9 @@ def log_metrics(evaluation,jsd, prefix,epoch,output_dir):
     for cs_name,cs_dict in evaluation.items():
         for metric_subname, metric in cs_dict["metric"].compute().items():
             csv_dict[f'{prefix}/{cs_name}/{metric_subname}'] = metric.item()
-    for metric_subname, metric in jsd.compute().items():
-        csv_dict[f'{prefix}/jsd/{metric_subname}'] = metric.item()
+    if jsd.count > 0:
+        for metric_subname, metric in jsd.compute().items():
+            csv_dict[f'{prefix}/jsd/{metric_subname}'] = metric.item()
     
     #How to log to a csv file the keys might be different
     filename = os.path.join(output_dir, f'{prefix}_metrics.csv')
@@ -96,24 +101,28 @@ def main(cfg):
     model = instantiate(cfg.model).to(device)
     scheduler = instantiate(cfg.noise_scheduler)
     checkpoint_path = cfg.checkpoint_path
-    model_state_dict = {k.replace('model.',''): v for k, v in torch.load(checkpoint_path)['state_dict'].items() if k.startswith('model.')}
+    model_state_dict = {k.replace('model.',''): v for k, v in torch.load(checkpoint_path,weights_only=False)['state_dict'].items() if k.startswith('model.')}
     model.load_state_dict(model_state_dict, strict=False)
+    model= model.half()
+
     model.eval()
 
     # ########## Metrics #############
     ### hyperparameters ##
-    num_inference_steps = 100
+    num_inference_steps =150
     guidance = 7.5
     max_samples = 10_000
+    num_train_steps = 1000
+    
 
     classifier = instantiate(cfg.classifier)
     classifier.load_state_dict(torch.load(cfg.classifer_checkpoint)["state_dict"])
 
     #evaluate for multiple queries
     cs_evaluations = {"val":{
-                "and": {"sampler":CondDDIMPipeline(unet=ANDquery(model), scheduler=scheduler),"query":prepare_and_query,"metric":CS(classifier = classifier).to(device)},
+                # "and": {"sampler":CondDDIMPipeline(unet=ANDquery(model), scheduler=scheduler),"query":prepare_and_query,"metric":CS(classifier = classifier).to(device)},
                 "joint": {"sampler":CondDDIMPipeline(unet=CFGquery(model), scheduler=scheduler),"query":prepare_and_query,"metric":CS(classifier = classifier).to(device)},
-                "not": {"sampler":CondDDIMPipeline(unet=Shapes3dNotquery(model), scheduler=scheduler),"query":shapes3d_not_query,"metric":CS(classifier = classifier).to(device)},
+                # "not": {"sampler":CondDDIMPipeline(unet=Shapes3dNotquery(model), scheduler=scheduler),"query":shapes3d_not_query,"metric":CS(classifier = classifier).to(device)},
             },
             "train":{
                 "and": {"sampler":CondDDIMPipeline(unet=ANDquery(model), scheduler=scheduler),"query":prepare_and_query,"metric":CS(classifier = classifier).to(device)},
@@ -123,19 +132,25 @@ def main(cfg):
 
     pipleline_kargs = {'num_inference_steps':num_inference_steps,
                         'return_dict':True,
-                        'use_clipped_model_output':True,
-                        'guidance_scale':guidance}
+                        'use_clipped_model_output':False,
+                        'guidance_scale':guidance,
+                        "num_train_steps":num_train_steps}
 
     for pbar in [ tqdm(val_dataloader, desc="val"),tqdm(train_dataloader, desc="train")]:
         evaluation = cs_evaluations[pbar.desc]
         jsd = JSD(model.num_classes_per_label).to(model.device)
         for epoch,batch in enumerate(pbar):
-            x,y,null_token  = batch["X"].to(device), batch["label"].to(device), batch["label_null"].to(device)
+            x,y,null_token  = batch["X"].to(device)[:4], batch["label"].to(device)[:4], batch["label_null"].to(device)[:4]
             ########### JSD #############
-            jsd.update(batch, model,scheduler)
+            #jsd.update(batch, model,scheduler)
             ########### CS #############
             for cs_name,cs_dict in evaluation.items():
-                generated_images = cs_dict["sampler"](batch_size= x.size(0),query = y,null_token=null_token,**pipleline_kargs)[0]
+                with autocast():
+                    generated_images = cs_dict["sampler"](batch_size= x.size(0),query = y,null_token=null_token,**pipleline_kargs)[0]
+                #save first image
+                plt.imshow(torch.tensor(generated_images[0].permute(1, 2, 0).cpu().numpy()*255,dtype=torch.uint8))
+                plt.savefig(f"{output_dir}/samples.png")
+
                 query,guidance_scale = cs_dict["query"](y,null_token,guidance)
                 cs_dict["metric"].update(generated_images,query,null_token,guidance_scale)
             log_metrics(evaluation,jsd, pbar.desc,epoch,output_dir)
