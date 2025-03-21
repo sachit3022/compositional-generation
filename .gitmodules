@@ -1,0 +1,3 @@
+[submodule "subpopulation_methods/group_DRO"]
+	path = subpopulation_methods/group_DRO
+	url = https://github.com/kohpangwei/group_DRO
