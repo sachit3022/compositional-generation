@@ -200,8 +200,8 @@ class GroupAccuracy(Metric):
     def compute(self):
         group_accuracy = [self.total_per_group[i]/self.count_per_group[i] for i in range(4) if self.count_per_group[i] > 0]
         return {
-            'avg_group_accuracy': sum(group_accuracy)/len(group_accuracy),            'worst_group_accuracy': min(group_accuracy),
-
+            'avg_group_accuracy': sum(group_accuracy)/len(group_accuracy), 'worst_group_accuracy': min(group_accuracy),
+            'per_group_accuracy': [ f"{i//2,i%2}:{self.total_per_group[i]/self.count_per_group[i]}" for i in range(4)]
         }
     def reset(self):
         self.total_per_group = [0]*4

@@ -104,6 +104,9 @@ class BlondFemaleDataset(CelebADataset):
         elif split == 'val':
             mask = mask & torch.logical_and(self.attributes_csv.data[:,9] == 1, self.attributes_csv.data[:,20] == -1)
         return mask
+    def __getitem__(self, idx):
+        data = super().__getitem__(idx)
+        return {"X":data["X"], "label":data["label"], "label_null":torch.ones_like(data["label"])*2, "idx":data["idx"]}
 
 
 class AttrCelebALatent(CelebADataset):
@@ -143,7 +146,6 @@ class CompositionalBlondMale(AttrCelebALatent):
     LC          88.3 (0.3)     70.7 (0.7)      21.0 (2.1)
     sLA         88.3 (0.3)     71.0 (0.6)      21.3 (1.9)
     CRM         93.0 (0.0)     85.7 (0.3)      73.3 (1.8)
-    CoInD       97.93          97.18           93.95
     """
     def filter_data(self,split):
         partition_map = {'train': 0, 'val': 1, 'test': 2}  
@@ -205,3 +207,6 @@ class MaleSmileLatent(CelebADataset):
         return {"X":torch.tensor(self.images), "label":labels, 'label_null': torch.ones_like(labels)*0.0}
     def __len__(self):
         return len(self.attributes)
+
+
+

@@ -27,4 +27,4 @@ class SytheticData(Dataset):
             image = self.transform(image)
         query = torch.tensor(self.metadata[idx]['query'])
         null_token = torch.tensor(self.metadata[idx]['null_token'])
-        return {"X":image, "label":query,"idx":idx}
+        return {"X":image, "label":query,"label_null":null_token,"idx":idx}

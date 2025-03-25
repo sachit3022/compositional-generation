@@ -15,11 +15,49 @@ import argparse
 from datasets.celeba import *
 from datasets.sythetic import SytheticData
 from torch.utils.data import ConcatDataset,WeightedRandomSampler,RandomSampler
-from torchvision.models.resnet import ResNet18_Weights
+from torchvision.models.resnet import ResNet18_Weights,ResNet50_Weights
 from torch.utils.data import DataLoader
 from metrics import DROMetrics
-from collections import Counter
+from collections import defaultdict,Counter
+import matplotlib.pyplot as plt
+import torchvision
+import numpy as np
+from torchmetrics.image.fid import FrechetInceptionDistance
+import bisect
+from torch.utils.data import ConcatDataset
 
+class ConcatDatasetWithIndices(ConcatDataset):
+    def __getitem__(self, idx):
+        # Handle negative indices
+        if idx < 0:
+            if -idx > len(self):
+                raise ValueError("absolute value of index should not exceed dataset length")
+            idx = len(self) + idx
+
+        # Determine which dataset this index falls into using cumulative sizes
+        dataset_idx = bisect.bisect_right(self.cumulative_sizes, idx)
+        if dataset_idx == 0:
+            sample_idx = idx
+        else:
+            sample_idx = idx - self.cumulative_sizes[dataset_idx - 1]
+        
+        # Get the sample from the appropriate dataset
+        sample = self.datasets[dataset_idx][sample_idx]
+        
+        # Option 1: If your sample is a dictionary, add a new key
+        if isinstance(sample, dict):
+            sample['dataset_idx'] = dataset_idx
+            return sample
+        # Option 2: If your sample is a tuple (e.g., (data, label)), append the index
+        elif isinstance(sample, tuple):
+            return sample + (dataset_idx,)
+        # Option 3: Otherwise, return a tuple with the sample and the dataset index
+        else:
+            return_dict  = {}
+            for key in sample:
+                return_dict[key] = sample[key]
+            return_dict['dataset_idx'] = dataset_idx
+            return return_dict
 
 def calculate_sample_weights(labels):
     # Convert labels to tuples for easy counting
@@ -27,13 +65,31 @@ def calculate_sample_weights(labels):
     
     # Count occurrences of each unique label combination
     group_counts = Counter(label_tuples)
+
+    #unique code for balancing first balance all the groups (1,0,*)(0,1,*)(1,1,*)(0,0,*) should be equal and if (1,0,*) has (1,0,1) (1,0,0) then they should be balanced
+    group2_dict = defaultdict(list)
+    for idx, label in enumerate(labels):
+        group_key = (label[0], label[1])
+        group2_dict[group_key].append(idx)
     
-    # Calculate weights for each group
-    total_samples = len(labels)
-    group_weights = {group: total_samples / count for group, count in group_counts.items()}
+    num_groups = len(group2_dict)
+    balanced_group_weights = {}
     
-    # Assign weights to each sample based on its group
-    sample_weights = [group_weights[tuple(label)] for label in labels]
+    # For each group defined by the first two label values,
+    # further split by the full label (which may differ in the 3rd element)
+    for group_key, indices in group2_dict.items():
+        # Count how many samples there are per full label within this group
+        subgroup_counts = Counter(tuple(labels[i]) for i in indices)
+        num_subgroups = len(subgroup_counts)
+        for label_tuple, count in subgroup_counts.items():
+            # Each group gets equal overall weight (1/num_groups)
+            # and within the group each subgroup gets an equal share (1/num_subgroups).
+            # Then each sample in a subgroup receives the share divided by its count.
+            balanced_weight = (1.0 / num_groups) * (1.0 / num_subgroups) / count
+            balanced_group_weights[label_tuple] = balanced_weight
+
+    sample_weights = [balanced_group_weights[tuple(label)] for label in labels]
+
     
     return torch.tensor(sample_weights)
 
@@ -51,30 +107,32 @@ if __name__ == "__main__":
 
     train_transform = default_celeba_transform('train')
     val_transform = default_celeba_transform('val')
+    
     sythetic_data = SytheticData(args.sythetic_data_path,transform=train_transform)
-    original_data_train = CompositionalBlondMale(args.original_data_path, latent_dir = '/research/hal-gaudisac/Diffusion/compositional-generation/data/celeba/vae_train_features', split='train')
-    original_data_val = BlondMale(args.original_data_path, latent_dir = '/research/hal-gaudisac/Diffusion/compositional-generation/data/celeba/vae_val_features', split='val')
 
-    # original_data_train = BlondFemaleDataset(args.original_data_path, split='train',transforms=train_transform,target_transform=blond_male_transform())
-    # original_data_val = BlondFemaleDataset(args.original_data_path, split='train',transforms=val_transform,target_transform=blond_male_transform())
+    #devide sythetic data into train and val
+    sythetic_data_train,sythetic_data_val = torch.utils.data.random_split(sythetic_data,[int(len(sythetic_data)*0.8),len(sythetic_data)-int(len(sythetic_data)*0.8)])
+    sythetic_data_val.dataset.transform = val_transform
+    original_data_train = BlondFemaleDataset(args.original_data_path, split='train',transforms=val_transform,target_transform=blond_male_transform())
+    original_data_val = CelebADataset(args.original_data_path, split='val',transforms=val_transform,target_transform=blond_male_transform())
 
     sampler = None
     if args.train_on == "synthetic":
-        train_data = sythetic_data
+        train_data = sythetic_data_train
         sampler = RandomSampler(train_data)
     elif args.train_on == "original":
         train_data = original_data_train
         sampler = RandomSampler(train_data)
     elif args.train_on == "both":
-        train_data = ConcatDataset([sythetic_data,original_data_train]) 
-        sampler = WeightedRandomSampler(calculate_sample_weights([x['query'] for x in train_data.datasets[0].metadata] + ((train_data.datasets[1].attributes[:,[20,9]]+1)//2).tolist()),len(train_data))
+        train_data = ConcatDatasetWithIndices([sythetic_data_train,original_data_train]) 
+        sampler = WeightedRandomSampler(calculate_sample_weights( [sythetic_data_train.dataset.metadata[i]['query']+[0] for i in sythetic_data_train.indices ] + [x+[1] for x in ((train_data.datasets[1].attributes[:,[20,9]]+1)//2).tolist()]) ,len(train_data))
     else:
         raise ValueError(f"Unknown train_on: {args.train_on}")
 
 
     
     
-    model = models.resnet18(weights=ResNet18_Weights.DEFAULT)
+    model = models.resnet50(weights=ResNet50_Weights.DEFAULT)
     model.fc = nn.Linear(model.fc.in_features, 2)
     
     
@@ -84,49 +142,84 @@ if __name__ == "__main__":
 
     train_dataloader = DataLoader(train_data,batch_size=batch_size,num_workers=4,persistent_workers=True, sampler=sampler)
     val_dataloader = DataLoader(original_data_val,batch_size=batch_size,shuffle=False,num_workers=4,persistent_workers=True)
-    # k=10020
-    # for batch in val_dataloader:
-    #     x= batch['X']
-    #     for j in range(len(x)):
-    #         img = x[j].permute(1,2,0).cpu().numpy()
-    #         img = (img - img.min())/(img.max()-img.min())
-    #         Image.fromarray((img*255).astype(np.uint8)).save(f"samples/fid_og/sample_{k}.png")
-    #         k+=1
+    syn_val_dataloader = DataLoader(sythetic_data_val,batch_size=batch_size,shuffle=False,num_workers=4,persistent_workers=True)
 
-
-    epoch = 30
+    epoch = 15
     train_acc = DROMetrics()
     val_acc = DROMetrics()
-    optimizer = torch.optim.Adam(model.parameters(),lr=3e-4)
+    val_acc_syn = DROMetrics()
+
+    optimizer = torch.optim.AdamW(model.parameters(),lr=3e-4,weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,epoch)
 
+    #counter to count the number of times the model is trained on the synthetic data
     for i  in range(epoch):
+        counter = Counter()
         model.train()
         for batch in train_dataloader:
             x,y = batch['X'].to(device),batch['label'].to(device)
+            if 'dataset_idx' in batch:
+                batch_dataset_idx = batch['dataset_idx']
+                #make a dict of batch_dataset_idx,y[:,0],y[:,1] and increment the counter
+                for idx,y_0,y_1 in zip(batch_dataset_idx,y[:,0],y[:,1]):
+                    counter[(idx.item(),y_0.item(),y_1.item())] += 1
             logits = model(x)
             loss = F.cross_entropy(logits,y[:,1])
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            scheduler.step()
             train_acc.update(logits,y[:,1],y[:,0])
+        scheduler.step()
+
+            
 
         print(f"Epoch {i} Train Accuracy: {train_acc.compute()}")
+        print(f"Epoch {i} Train Counter: {counter}")
         train_acc.reset()
         with torch.no_grad():
             model.eval()
-            for batch in val_dataloader:
-                x,y = batch['X'].to(device),batch['label'].to(device)
+            for batch_val in val_dataloader:
+                x,y = batch_val['X'].to(device),batch_val['label'].to(device)
                 logits = model(x)
                 val_acc.update(logits,y[:,1],y[:,0])
-                if i == 0:
-                    for j in range(10):
-                        img = x[j].permute(1,2,0).cpu().numpy()
-                        img = (img - img.min())/(img.max()-img.min())
-                        Image.fromarray((img*255).astype(np.uint8)).save(f"samples/sample_{j}.png")
-
-
         print(f"Epoch {i} Val Accuracy: {val_acc.compute()}")
         val_acc.reset()
+
+        with torch.no_grad():
+            model.eval()
+            for batch_val in syn_val_dataloader:
+                x,y = batch_val['X'].to(device),batch_val['label'].to(device)
+                logits = model(x)
+                val_acc_syn.update(logits,y[:,1],y[:,0])
+        print(f"Epoch {i} Syn Val Accuracy: {val_acc_syn.compute()}")
+        val_acc_syn.reset()
+
+
+
+    ### FID Score
+    fid_transform= transforms.Compose([
+            transforms.Resize((299, 299)),
+            transforms.PILToTensor()
+            ])
+    sythetic_data = SytheticData(args.sythetic_data_path,transform=fid_transform)
+    original_data_val = CelebADataset(args.original_data_path, split='val',transforms=fid_transform,target_transform=blond_male_transform())
+
+    train_loader = DataLoader(sythetic_data, batch_size=batch_size, shuffle=False, num_workers=4)
+    val_loader = DataLoader(original_data_val, batch_size=batch_size, shuffle=False, num_workers=4)
+    
+    for y_0,y_1 in [(0,0),(0,1),(1,0),(1,1)]:
+        fid = FrechetInceptionDistance(feature=768).to(device)
+        for batch in train_loader:
+            x = batch['X'].to(device)[torch.logical_and(batch['label'][:,1] == y_1,batch['label'][:,0] == y_0)]
+            fid.update(x, real=False)
+
+        for batch in val_loader:
+            x = batch['X'].to(device)[torch.logical_and(batch['label'][:,1] == y_1,batch['label'][:,0] == y_0)]
+            fid.update(x, real=True)
+            
+        print(f"{y_0},{y_1} FID: {fid.compute()}")
+
+
+
+        
 

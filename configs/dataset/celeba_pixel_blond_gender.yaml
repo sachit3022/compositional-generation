@@ -1,0 +1,30 @@
+train_dataset:
+  _target_: datasets.celeba.BlondFemaleDataset
+  root:  /research/hal-datastore/datasets/original/
+  split: 'train'
+  target_transform: 
+    _target_: datasets.celeba.blond_male_transform
+  size: 64
+  
+
+  
+val_dataset:
+  _target_: datasets.celeba.BlondFemaleDataset
+  root:  /research/hal-datastore/datasets/original/
+  split: 'val'
+  target_transform: 
+    _target_: datasets.celeba.blond_male_transform
+  size: 64
+
+  
+train_dataloader:
+  batch_size: 16
+  num_workers: 4
+  persistent_workers: True
+  shuffle: True
+
+val_dataloader:
+  batch_size: 16
+  num_workers: 4
+  persistent_workers: True
+  shuffle: False

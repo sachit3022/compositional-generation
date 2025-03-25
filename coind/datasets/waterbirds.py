@@ -215,7 +215,7 @@ class AttrWaterbirdsLatent(CUBDataset):
         
         x = np.load(self.latent_dir+"/{:06d}.npy".format(self.metadata_idx[idx]))
         label = torch.tensor((y,g))
-        return {"X": x, "label": label, "label_null": torch.ones_like(label)*2}
+        return {"X": torch.from_numpy(x), "label": label, "label_null": torch.ones_like(label)*2}
 
     def __len__(self):
         return len(self.y_array)
