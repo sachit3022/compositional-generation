@@ -93,6 +93,32 @@ def calculate_sample_weights(labels):
     
     return torch.tensor(sample_weights)
 
+
+def unseen_from_synthetic_and_rest_all_from_real(labels):
+    # Convert labels to tuples for easy counting
+    label_tuples = [tuple(label) for label in labels]
+    
+    # Count occurrences of each unique label combination
+    group_counts = Counter(label_tuples)
+
+    #unique code for balancing first balance all the groups (1,0,*)(0,1,*)(1,1,*)(0,0,*) should be equal and if (1,0,*) has (1,0,1) (1,0,0) then they should be balanced
+    #(0,1,0) _> 25% and (1,1,1) -> 25% and (1,0,1) -> 25% and (0,0,1) -> 25%
+    counter_dict = defaultdict(int)
+    for idx, label in enumerate(labels):
+        group_key = (label[0], label[1],label[2])
+        counter_dict[group_key] += 1
+    
+    sample_weights =[]
+    for idx, label in enumerate(labels):
+        group_key = (label[0], label[1],label[2])
+        if group_key in [(0,1,0),(1,1,1),(1,0,1),(0,0,1)]:
+            sample_weights.append(1.0/counter_dict[group_key])
+        else:
+            sample_weights.append(0)
+
+    
+    return torch.tensor(sample_weights)
+
 if __name__ == "__main__":
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -125,7 +151,7 @@ if __name__ == "__main__":
         sampler = RandomSampler(train_data)
     elif args.train_on == "both":
         train_data = ConcatDatasetWithIndices([sythetic_data_train,original_data_train]) 
-        sampler = WeightedRandomSampler(calculate_sample_weights( [sythetic_data_train.dataset.metadata[i]['query']+[0] for i in sythetic_data_train.indices ] + [x+[1] for x in ((train_data.datasets[1].attributes[:,[20,9]]+1)//2).tolist()]) ,len(train_data))
+        sampler = WeightedRandomSampler(unseen_from_synthetic_and_rest_all_from_real( [sythetic_data_train.dataset.metadata[i]['query']+[0] for i in sythetic_data_train.indices ] + [x+[1] for x in ((train_data.datasets[1].attributes[:,[20,9]]+1)//2).tolist()]) ,len(train_data))
     else:
         raise ValueError(f"Unknown train_on: {args.train_on}")
 

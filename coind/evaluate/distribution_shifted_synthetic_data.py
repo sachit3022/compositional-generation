@@ -395,7 +395,7 @@ if __name__ == "__main__":
             for idx,y_0,y_1 in zip(batch_dataset_idx,y[:,0],y[:,1]):
                 counter[(idx.item(),y_0.item(),y_1.item())] += 1    
             #total_loss, cls_loss, mmd_loss_val = train_step(x,y[:,1],y[:,0], feature_extractor, classifier, optimizer, criterion)
-            #torch.hstack([y[:,0].unsqueeze(dim=1),batch_dataset_idx.unsqueeze(dim=1)])
+            #Can replace batch_dataset_idx with torch.hstack([y[:,0].unsqueeze(dim=1),batch_dataset_idx.unsqueeze(dim=1)])
             total_loss, cls_loss, irm_penalty_val = train_step_irm(x,y[:,1],batch_dataset_idx, feature_extractor, classifier, optimizer,global_step, penalty_anneal_iters, irm_weight)
             global_step+=1
             with torch.no_grad():
